@@ -10,8 +10,8 @@ x_points dw 2048 dup(0)
 y_points dw 2048 dup(0)
 point_info dw 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal, 2 = highlighted, 3 = selected)
 lines db 1024 dup(0)
-x_point dw 0
-y_point dw 0
+x_point dw ?
+y_point dw ?
 color db 15
 line_resulution dw 1000
 pressed_last_frame db 0
@@ -19,6 +19,7 @@ dot_sprite_size db 1
 dot_hitbox_size db 4
 button_count db 3
 button_images dw 48 dup(0)
+calculation_variable dw ?
 
 CODESEG
 
@@ -66,64 +67,282 @@ finish1:
     ret
 endp
 
-proc draw_line
-    ; uses points at bx, dx
+; proc draw_line
+;     ; uses points at bx, dx
+;     push ax
+;     push bx
+;     push cx
+;     push dx
+    
+;     ; reset
+;     mov cx, [line_resulution]
+;     push dx
+
+; draw_point:
+;     ; calculate x
+;     mov ax, cx
+;     mul [x_points + bx]
+;     div [line_resulution]
+;     mov dx, bx
+;     pop bx
+;     push dx
+
+;     mov [x_point], ax
+
+;     mov ax, [line_resulution]
+;     sub ax, cx
+;     mul [x_points + bx]
+;     div [line_resulution]
+
+;     add [x_point], ax
+
+;     ; calculate y
+;     mov ax, [line_resulution]
+;     sub ax, cx
+;     mul [y_points +  bx]
+;     div [line_resulution]
+;     mov dx, bx
+;     pop bx
+;     push dx
+
+;     mov [y_point], ax
+
+;     mov ax, cx
+;     mul [y_points + bx]
+;     div [line_resulution]
+
+;     add [y_point], ax
+
+;     ; print point
+;     call print_point
+
+;     ; go to next point
+;     loop draw_point
+
+;     pop dx
+;     pop dx
+;     pop cx
+;     pop bx
+;     pop ax
+; 	ret
+; endp
+
+proc draw_bezier_curve_ ; remove _!
+    ; uses points in stack, with ffff between each cord, and count in ax
     push ax
     push bx
-    push cx
-    push dx
-    
-    ; reset
-    mov cx, [line_resulution]
     push dx
 
-draw_point:
-    ; calculate x
-    mov ax, cx
-    mul [x_points + bx]
-    div [line_resulution]
-    mov dx, bx
+    add sp, ax
+    mov sp, 00feh
     pop bx
+
+    ; switch all to cords
+    add sp, 8 ; change this if need cx !
+    mov dx, sp
+    add sp, ax
+    add sp, ax
+    add sp, ax
+    add sp, ax
+
+next_index: ; remove _!
+    sub sp, 2
+    pop bx
+    mov sp, 00feh
+    pop bx
+    add bx, bx
+    push [x_points + bx]
+    mov ax, [x_points + bx]
+    push [y_points + bx]
+    mov ax, [y_points + bx]
+
+    cmp sp, dx
+    jnz next_index
+
+    pop dx
+    pop bx
+    pop ax
+    ret ; remember to return to the place with the location !
+endp
+
+proc recursive_bazier_curve ; remove !
+endp
+
+proc draw_bezier_curve
+    ; uses indexes in stack, gets count in dx
+    ; doesn't save registers
+
+    dec dx
+    mov cx, [line_resulution]
+    mov [calculation_variable], cx
+
+next_t:
+    mov bx, sp
+
+    ; reset n choose i
+    mov ax, 1
+
+    mov [x_point], 0
+    mov [y_point], 0
+
+    mov cx, dx
+    inc cx
+
+    ; cx = i + 1
+    ; calculation variable = t * line_resulution
+    ; [x_points + bx] = x
+    ; [y_points + bx] = y
+    ; dx = n
+    ; ax = current result
+    ; [x_point], [y_point] = result
+
+next_i:
+    add bx, 2
+
+    ; save current n choose i
+    push ax
+    
+    ; save for next loop
+    push cx
+    
+    ; calculate x
+
+    ; multiply by P
     push dx
-
-    mov [x_point], ax
-
-    mov ax, [line_resulution]
-    sub ax, cx
+    push bx
+    mov bx, [ss:bx]
+    add bx, bx
     mul [x_points + bx]
-    div [line_resulution]
+    pop bx
+    
+    ; multiply by t power i
+    dec cx
+    push cx
+    cmp cx, 0
+    jz skip_power
 
+calculate_t_power_i:
+    mul [calculation_variable]
+    div [line_resulution]
+    loop calculate_t_power_i
+
+skip_power:
+
+    ; calculate n-i
+    pop cx
+    pop dx
+    push dx
+    sub cx, dx
+    neg cx
+
+    push bx
+
+    ; calculate line_resulution-t*line_resulution
+    mov bx, [line_resulution]
+    sub bx, [calculation_variable]
+    
+    cmp cx, 0
+    jz skip_power1
+
+calculate_1_t_power_n_i:
+    mul bx
+    div [line_resulution]
+    loop calculate_1_t_power_n_i
+
+skip_power1:
+
+    pop bx
+    pop dx
+
+    ; add to toatal
     add [x_point], ax
 
     ; calculate y
-    mov ax, [line_resulution]
-    sub ax, cx
-    mul [y_points +  bx]
-    div [line_resulution]
-    mov dx, bx
-    pop bx
+    pop cx
+    pop ax
+    push ax
+    push cx
+
+    ; multiply by P
     push dx
-
-    mov [y_point], ax
-
-    mov ax, cx
+    push bx
+    mov bx, [ss:bx]
+    add bx, bx
     mul [y_points + bx]
-    div [line_resulution]
+    pop bx
+    
+    ; multiply by t power i
+    dec cx
+    push cx
+    cmp cx, 0
+    jz skip_power3
 
+calculate_t_power_i1:
+    mul [calculation_variable]
+    div [line_resulution]
+    loop calculate_t_power_i1
+
+skip_power3:
+
+    ; calculate n-i
+    pop cx
+    pop dx
+    push dx
+    sub cx, dx
+    neg cx
+
+    push bx
+
+    ; calculate line_resulution-t*line_resulution
+    mov bx, [line_resulution]
+    sub bx, [calculation_variable]
+    
+    cmp cx, 0
+    jz skip_power4
+
+calculate_1_t_power_n_i1:
+    mul bx
+    div [line_resulution]
+    loop calculate_1_t_power_n_i1
+
+skip_power4:
+
+    pop bx
+    pop dx
+
+    ; add to toatal
     add [y_point], ax
 
-    ; print point
-    call print_point
-
-    ; go to next point
-    loop draw_point
-
-    pop dx
-    pop dx
+    ; calculate next n choose i
     pop cx
-    pop bx
     pop ax
-	ret
+    push bx
+
+    dec cx
+    mul cl
+    inc cx
+    mov bx, dx
+    add bx, 2
+    sub bx, cx
+    push dx
+    xor dx, dx
+    div bx ; ax becomes 0 at the end
+    pop dx
+
+    pop bx
+
+    ; loop next
+    dec cx
+    jz jmp_next_t
+    jmp next_i
+jmp_next_t:
+    call print_point
+    dec [calculation_variable]
+    jz finish15
+    jmp next_t
+
+finish15:
+    ret
 endp
 
 proc clear_screen
@@ -840,7 +1059,7 @@ next_line:
     mov bx, ax
     add bx, ax
 
-    call draw_line
+    ; call draw_line !
 
     loop next_line
 
@@ -852,6 +1071,9 @@ finish14:
     mov [color], al
     pop ax
     ret
+endp
+
+proc get_selected_line ; finish !
 endp
 
 ; other
@@ -903,58 +1125,82 @@ start:
 	call clear_screen
 	call show_mouse
 
-    mov [button_images],      0000000000000000b
-    mov [button_images + 2],  0001111111111000b
-    mov [button_images + 4],  0010000000000100b
-    mov [button_images + 6],  0100000110000010b
-    mov [button_images + 8],  0100000110000010b
-    mov [button_images + 10], 0100111111110010b
-    mov [button_images + 12], 0100000000000010b
-    mov [button_images + 14], 0100011111100010b
-    mov [button_images + 16], 0100010110100010b
-    mov [button_images + 18], 0100010110100010b
-    mov [button_images + 20], 0100010110100010b
-    mov [button_images + 22], 0100010110100010b
-    mov [button_images + 24], 0100011111100010b
-    mov [button_images + 26], 0010000000000100b
-    mov [button_images + 28], 0001111111111000b
-    mov [button_images + 30], 0000000000000000b
+    ; mov [button_images],      0000000000000000b
+    ; mov [button_images + 2],  0001111111111000b
+    ; mov [button_images + 4],  0010000000000100b
+    ; mov [button_images + 6],  0100000110000010b
+    ; mov [button_images + 8],  0100000110000010b
+    ; mov [button_images + 10], 0100111111110010b
+    ; mov [button_images + 12], 0100000000000010b
+    ; mov [button_images + 14], 0100011111100010b
+    ; mov [button_images + 16], 0100010110100010b
+    ; mov [button_images + 18], 0100010110100010b
+    ; mov [button_images + 20], 0100010110100010b
+    ; mov [button_images + 22], 0100010110100010b
+    ; mov [button_images + 24], 0100011111100010b
+    ; mov [button_images + 26], 0010000000000100b
+    ; mov [button_images + 28], 0001111111111000b
+    ; mov [button_images + 30], 0000000000000000b
 
-    mov [button_images + 32], 0000000000000000b
-    mov [button_images + 34], 0001111111111000b
-    mov [button_images + 36], 0010000000000100b
-    mov [button_images + 38], 0100010000000010b
-    mov [button_images + 40], 0100000000000010b
-    mov [button_images + 42], 0100001000000010b
-    mov [button_images + 44], 0100000100000010b
-    mov [button_images + 46], 0100000100000010b
-    mov [button_images + 48], 0100000010000010b
-    mov [button_images + 50], 0100000010000010b
-    mov [button_images + 52], 0100000001000010b
-    mov [button_images + 54], 0100000000000010b
-    mov [button_images + 56], 0100000000100010b
-    mov [button_images + 58], 0010000000000100b
-    mov [button_images + 60], 0001111111111000b
-    mov [button_images + 62], 0000000000000000b
+    ; mov [button_images + 32], 0000000000000000b
+    ; mov [button_images + 34], 0001111111111000b
+    ; mov [button_images + 36], 0010000000000100b
+    ; mov [button_images + 38], 0100010000000010b
+    ; mov [button_images + 40], 0100000000000010b
+    ; mov [button_images + 42], 0100001000000010b
+    ; mov [button_images + 44], 0100000100000010b
+    ; mov [button_images + 46], 0100000100000010b
+    ; mov [button_images + 48], 0100000010000010b
+    ; mov [button_images + 50], 0100000010000010b
+    ; mov [button_images + 52], 0100000001000010b
+    ; mov [button_images + 54], 0100000000000010b
+    ; mov [button_images + 56], 0100000000100010b
+    ; mov [button_images + 58], 0010000000000100b
+    ; mov [button_images + 60], 0001111111111000b
+    ; mov [button_images + 62], 0000000000000000b
 
-    mov [button_images + 64], 0000000000000000b
-    mov [button_images + 66], 0001111111111000b
-    mov [button_images + 68], 0010000000000100b
-    mov [button_images + 70], 0100001100000010b
-    mov [button_images + 72], 0100110000111010b
-    mov [button_images + 74], 0100100000110010b
-    mov [button_images + 76], 0101000000111010b
-    mov [button_images + 78], 0101000000101010b
-    mov [button_images + 80], 0101010000001010b
-    mov [button_images + 82], 0101110000001010b
-    mov [button_images + 84], 0100110000010010b
-    mov [button_images + 86], 0101110000110010b
-    mov [button_images + 88], 0100000011000010b
-    mov [button_images + 90], 0010000000000100b
-    mov [button_images + 92], 0001111111111000b
-    mov [button_images + 94], 0000000000000000b
+    ; mov [button_images + 64], 0000000000000000b
+    ; mov [button_images + 66], 0001111111111000b
+    ; mov [button_images + 68], 0010000000000100b
+    ; mov [button_images + 70], 0100001100000010b
+    ; mov [button_images + 72], 0100110000111010b
+    ; mov [button_images + 74], 0100100000110010b
+    ; mov [button_images + 76], 0101000000111010b
+    ; mov [button_images + 78], 0101000000101010b
+    ; mov [button_images + 80], 0101010000001010b
+    ; mov [button_images + 82], 0101110000001010b
+    ; mov [button_images + 84], 0100110000010010b
+    ; mov [button_images + 86], 0101110000110010b
+    ; mov [button_images + 88], 0100000011000010b
+    ; mov [button_images + 90], 0010000000000100b
+    ; mov [button_images + 92], 0001111111111000b
+    ; mov [button_images + 94], 0000000000000000b
 
-    jmp game_loop
+    ; jmp game_loop
+
+    mov [x_point], 50
+    mov [y_point], 10
+    call save_point
+
+    mov [x_point], 100
+    mov [y_point], 20
+    call save_point
+
+    mov [x_point], 100
+    mov [y_point], 50
+    call save_point
+
+    mov [x_point], 20
+    mov [y_point], 40
+    call save_point
+
+    push 1023
+    push 1022
+    push 1021
+    mov dx, 3
+    call draw_bezier_curve
+
+    jmp exit_loop
 
 button1:
     call clear_screen
@@ -975,7 +1221,7 @@ button2:
     call get_selected_point
     jz game_loop
     call save_line
-    call draw_line
+    ; call draw_line !
     jmp game_loop
 
 button3:
@@ -1026,7 +1272,7 @@ next:
     jmp move_loop
 
 game_loop:
-    call draw_saved_points
+    call draw_saved_points ; don't do this !
     call clear_highlighted_point
     call get_mouse_press_info
 
@@ -1142,9 +1388,10 @@ exit:
 	int 21h
 END start
 
-; add lines
-; add colors
-; add line button
-; add way to see lines
-; add out of bounds support by modifing the draw saved points and get point at location
-; add zoom in and zoom out
+; add lines !
+; make update points and update slines !
+; add colors !
+; add line button !
+; add way to see lines !
+; add out of bounds support by modifing the draw saved points and get point at location !
+; add zoom in and zoom out !
