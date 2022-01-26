@@ -67,105 +67,24 @@ finish1:
     ret
 endp
 
-; proc draw_line
-;     ; uses points at bx, dx
-;     push ax
-;     push bx
-;     push cx
-;     push dx
-    
-;     ; reset
-;     mov cx, [line_resulution]
-;     push dx
+proc prepare_for_line ; fix the order !
+    ; doesn't save registers
+    ; sets dx to selected points count
+    ; pushes all selected points into stack
+    pop bx
+    xor dx, dx
 
-; draw_point:
-;     ; calculate x
-;     mov ax, cx
-;     mul [x_points + bx]
-;     div [line_resulution]
-;     mov dx, bx
-;     pop bx
-;     push dx
-
-;     mov [x_point], ax
-
-;     mov ax, [line_resulution]
-;     sub ax, cx
-;     mul [x_points + bx]
-;     div [line_resulution]
-
-;     add [x_point], ax
-
-;     ; calculate y
-;     mov ax, [line_resulution]
-;     sub ax, cx
-;     mul [y_points +  bx]
-;     div [line_resulution]
-;     mov dx, bx
-;     pop bx
-;     push dx
-
-;     mov [y_point], ax
-
-;     mov ax, cx
-;     mul [y_points + bx]
-;     div [line_resulution]
-
-;     add [y_point], ax
-
-;     ; print point
-;     call print_point
-
-;     ; go to next point
-;     loop draw_point
-
-;     pop dx
-;     pop dx
-;     pop cx
-;     pop bx
-;     pop ax
-; 	ret
-; endp
-
-proc draw_bezier_curve_ ; remove _!
-    ; uses points in stack, with ffff between each cord, and count in ax
+    mov ax, 1024
+next_point3:
+    call get_selected_point
+    jnz finish16
     push ax
+    inc dx
+    jmp next_point3
+
+finish16:
     push bx
-    push dx
-
-    add sp, ax
-    mov sp, 00feh
-    pop bx
-
-    ; switch all to cords
-    add sp, 8 ; change this if need cx !
-    mov dx, sp
-    add sp, ax
-    add sp, ax
-    add sp, ax
-    add sp, ax
-
-next_index: ; remove _!
-    sub sp, 2
-    pop bx
-    mov sp, 00feh
-    pop bx
-    add bx, bx
-    push [x_points + bx]
-    mov ax, [x_points + bx]
-    push [y_points + bx]
-    mov ax, [y_points + bx]
-
-    cmp sp, dx
-    jnz next_index
-
-    pop dx
-    pop bx
-    pop ax
-    ret ; remember to return to the place with the location !
-endp
-
-proc recursive_bazier_curve ; remove !
+    ret
 endp
 
 proc draw_bezier_curve
@@ -963,7 +882,7 @@ endp
 
 ; lines
 
-proc save_line
+proc save_line ; redo !
     ; uses first two selected points
     ; uses [color]
     push ax
@@ -1014,7 +933,7 @@ find_space1:
     ret
 endp
 
-proc draw_saved_lines
+proc draw_saved_lines ; redo !
     push ax
     mov al, [color]
     push ax
@@ -1073,9 +992,6 @@ finish14:
     ret
 endp
 
-proc get_selected_line ; finish !
-endp
-
 ; other
 
 proc toggle_zf
@@ -1125,82 +1041,58 @@ start:
 	call clear_screen
 	call show_mouse
 
-    ; mov [button_images],      0000000000000000b
-    ; mov [button_images + 2],  0001111111111000b
-    ; mov [button_images + 4],  0010000000000100b
-    ; mov [button_images + 6],  0100000110000010b
-    ; mov [button_images + 8],  0100000110000010b
-    ; mov [button_images + 10], 0100111111110010b
-    ; mov [button_images + 12], 0100000000000010b
-    ; mov [button_images + 14], 0100011111100010b
-    ; mov [button_images + 16], 0100010110100010b
-    ; mov [button_images + 18], 0100010110100010b
-    ; mov [button_images + 20], 0100010110100010b
-    ; mov [button_images + 22], 0100010110100010b
-    ; mov [button_images + 24], 0100011111100010b
-    ; mov [button_images + 26], 0010000000000100b
-    ; mov [button_images + 28], 0001111111111000b
-    ; mov [button_images + 30], 0000000000000000b
+    mov [button_images],      0000000000000000b
+    mov [button_images + 2],  0001111111111000b
+    mov [button_images + 4],  0010000000000100b
+    mov [button_images + 6],  0100000110000010b
+    mov [button_images + 8],  0100000110000010b
+    mov [button_images + 10], 0100111111110010b
+    mov [button_images + 12], 0100000000000010b
+    mov [button_images + 14], 0100011111100010b
+    mov [button_images + 16], 0100010110100010b
+    mov [button_images + 18], 0100010110100010b
+    mov [button_images + 20], 0100010110100010b
+    mov [button_images + 22], 0100010110100010b
+    mov [button_images + 24], 0100011111100010b
+    mov [button_images + 26], 0010000000000100b
+    mov [button_images + 28], 0001111111111000b
+    mov [button_images + 30], 0000000000000000b
 
-    ; mov [button_images + 32], 0000000000000000b
-    ; mov [button_images + 34], 0001111111111000b
-    ; mov [button_images + 36], 0010000000000100b
-    ; mov [button_images + 38], 0100010000000010b
-    ; mov [button_images + 40], 0100000000000010b
-    ; mov [button_images + 42], 0100001000000010b
-    ; mov [button_images + 44], 0100000100000010b
-    ; mov [button_images + 46], 0100000100000010b
-    ; mov [button_images + 48], 0100000010000010b
-    ; mov [button_images + 50], 0100000010000010b
-    ; mov [button_images + 52], 0100000001000010b
-    ; mov [button_images + 54], 0100000000000010b
-    ; mov [button_images + 56], 0100000000100010b
-    ; mov [button_images + 58], 0010000000000100b
-    ; mov [button_images + 60], 0001111111111000b
-    ; mov [button_images + 62], 0000000000000000b
+    mov [button_images + 32], 0000000000000000b
+    mov [button_images + 34], 0001111111111000b
+    mov [button_images + 36], 0010000000000100b
+    mov [button_images + 38], 0100010000000010b
+    mov [button_images + 40], 0100000000000010b
+    mov [button_images + 42], 0100001000000010b
+    mov [button_images + 44], 0100000100000010b
+    mov [button_images + 46], 0100000100000010b
+    mov [button_images + 48], 0100000010000010b
+    mov [button_images + 50], 0100000010000010b
+    mov [button_images + 52], 0100000001000010b
+    mov [button_images + 54], 0100000000000010b
+    mov [button_images + 56], 0100000000100010b
+    mov [button_images + 58], 0010000000000100b
+    mov [button_images + 60], 0001111111111000b
+    mov [button_images + 62], 0000000000000000b
 
-    ; mov [button_images + 64], 0000000000000000b
-    ; mov [button_images + 66], 0001111111111000b
-    ; mov [button_images + 68], 0010000000000100b
-    ; mov [button_images + 70], 0100001100000010b
-    ; mov [button_images + 72], 0100110000111010b
-    ; mov [button_images + 74], 0100100000110010b
-    ; mov [button_images + 76], 0101000000111010b
-    ; mov [button_images + 78], 0101000000101010b
-    ; mov [button_images + 80], 0101010000001010b
-    ; mov [button_images + 82], 0101110000001010b
-    ; mov [button_images + 84], 0100110000010010b
-    ; mov [button_images + 86], 0101110000110010b
-    ; mov [button_images + 88], 0100000011000010b
-    ; mov [button_images + 90], 0010000000000100b
-    ; mov [button_images + 92], 0001111111111000b
-    ; mov [button_images + 94], 0000000000000000b
+    mov [button_images + 64], 0000000000000000b
+    mov [button_images + 66], 0001111111111000b
+    mov [button_images + 68], 0010000000000100b
+    mov [button_images + 70], 0100001100000010b
+    mov [button_images + 72], 0100110000111010b
+    mov [button_images + 74], 0100100000110010b
+    mov [button_images + 76], 0101000000111010b
+    mov [button_images + 78], 0101000000101010b
+    mov [button_images + 80], 0101010000001010b
+    mov [button_images + 82], 0101110000001010b
+    mov [button_images + 84], 0100110000010010b
+    mov [button_images + 86], 0101110000110010b
+    mov [button_images + 88], 0100000011000010b
+    mov [button_images + 90], 0010000000000100b
+    mov [button_images + 92], 0001111111111000b
+    mov [button_images + 94], 0000000000000000b
 
-    ; jmp game_loop
-
-    mov [x_point], 50
-    mov [y_point], 10
-    call save_point
-
-    mov [x_point], 100
-    mov [y_point], 20
-    call save_point
-
-    mov [x_point], 100
-    mov [y_point], 50
-    call save_point
-
-    mov [x_point], 20
-    mov [y_point], 40
-    call save_point
-
-    push 1023
-    push 1022
-    push 1021
-    mov dx, 3
-    call draw_bezier_curve
-
-    jmp exit_loop
+    jmp game_loop
 
 button1:
     call clear_screen
@@ -1212,16 +1104,8 @@ button2:
     mov ax, 1024
     call get_selected_point
     jnz game_loop
-    mov dx, ax
-    add dx, ax
-    call get_selected_point
-    jnz game_loop
-    mov bx, ax
-    add bx, ax
-    call get_selected_point
-    jz game_loop
-    call save_line
-    ; call draw_line !
+    call prepare_for_line
+    call draw_bezier_curve
     jmp game_loop
 
 button3:
