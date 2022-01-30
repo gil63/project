@@ -6,19 +6,21 @@ STACK 100h
 
 DATASEG
 
-x_points dw 2048 dup(0)
-y_points dw 2048 dup(0)
+x_points dw 2048 dup(?)
+y_points dw 2048 dup(?)
 point_info dw 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal, 2 = highlighted, 3 = selected)
-lines db 1024 dup(0)
+line_info db 4096 dup(0) ; first, second bytes = starting index in line_points, third byte - 2 last bytes = point count, 2 last bytes of third byte = mode (0 = doesn't exists, 1 = normal), forth byte = color
+line_points dw 4096 dup(0)
+used_line_points dw 0
 x_point dw ?
 y_point dw ?
 color db 15
 line_resulution dw 1000
 pressed_last_frame db 0
 dot_sprite_size db 1
-dot_hitbox_size db 4
-button_count db 3
-button_images dw 48 dup(0)
+dot_hitbox_size db 6
+button_count db 4
+button_images dw 128 dup(0)
 calculation_variable dw ?
 
 CODESEG
@@ -67,29 +69,12 @@ finish1:
     ret
 endp
 
-proc prepare_for_line ; fix the order !
-    ; doesn't save registers
-    ; sets dx to selected points count
-    ; pushes all selected points into stack
-    pop bx
-    xor dx, dx
-
-    mov ax, 1024
-next_point3:
-    call get_selected_point
-    jnz finish16
-    push ax
-    inc dx
-    jmp next_point3
-
-finish16:
-    push bx
-    ret
-endp
-
 proc draw_bezier_curve
     ; uses indexes in stack, gets count in dx
-    ; doesn't save registers
+    push ax
+    push bx
+    push cx
+    push dx
 
     dec dx
     mov cx, [line_resulution]
@@ -97,6 +82,7 @@ proc draw_bezier_curve
 
 next_t:
     mov bx, sp
+    add bx, 8
 
     ; reset n choose i
     mov ax, 1
@@ -261,6 +247,10 @@ jmp_next_t:
     jmp next_t
 
 finish15:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 endp
 
@@ -882,112 +872,273 @@ endp
 
 ; lines
 
-proc save_line ; redo !
-    ; uses first two selected points
+proc save_line
+    ; uses indexes in stack, gets count in dx
     ; uses [color]
     push ax
     push bx
     push cx
+    push dx
 
-    ; reset
-    mov cx, 256
-    jmp find_space1
+    xor bx, bx
+    sub bx, 4
 
-next3:
-    loop find_space1
-
-    ; find empty space in list
 find_space1:
-    mov bx, cx
-    dec bx
-    add bx, bx
-    add bx, bx
+    add bx, 4
+    mov al, [line_info + bx + 2]
+    shr al, 6
+    jnz find_space1
 
-    ; check if empty
-    mov al, [lines + bx + 3]
-    test al, 80h
-    jnz next3
-
-    ; write color
+    ; save in space
+    mov ax, [used_line_points]
+    mov [offset line_info + bx], ax
     mov al, [color]
-    mov [lines + bx], al
+    mov [line_info + bx + 3], al
+    mov al, dl
+    and al, 00111111b
+    mov cl, al
+    xor ch, ch
+    or al, 01000000b
+    mov [line_info + bx + 2], al
 
-    ; delete info
-    mov [lines + bx + 2], 0
-    mov [lines + bx + 3], 0
+    ; save point indexes
+save_next_point:
+    dec dx
+    
+    mov bx, sp
+    add bx, dx
+    add bx, dx
+    mov ax, [ss:(bx + 10)]
+    
+    sub bx, sp
+    add bx, [used_line_points]
+    add bx, [used_line_points]
+    mov [line_points + bx], ax
 
-    ; write first point
-    mov ax, 1024
-    call get_selected_point
-    mov [offset lines + bx + 1], ax
+    cmp dx, 0
+    jnz save_next_point
 
-    ; write second point
-    call get_selected_point
-    shl ax, 2
-    or ax, 8000h
-    or [offset lines + bx + 2], ax
-
+    add [used_line_points], cx
+    pop dx
     pop cx
     pop bx
     pop ax
     ret
 endp
 
-proc draw_saved_lines ; redo !
-    push ax
-    mov al, [color]
+proc draw_saved_lines
     push ax
     push bx
     push cx
     push dx
 
-    ; start
-    mov cx, 256
+    xor bx, bx
+    sub bx, 4
+next_line:
+    add bx, 4
+    mov dl, [line_info + bx + 2]
+    test dl, 11000000b
+    jz finish16
+    and dx, 0000000000111111b
+    mov cx, dx
+    mov ax, bx
+    mov bx, [offset line_info + bx]
+    add bx, bx
+    sub bx, 2
+
+push_next_point:
+    ; push all point indexes
+    add bx, 2
+    push [line_points + bx]
+    loop push_next_point
+    
+    ; draw line
+    call draw_bezier_curve
+
+    ; reset stack
+    add sp, dx
+    add sp, dx
+
+    ; repeat
+    mov bx, ax
     jmp next_line
 
-next4:
-    loop next_line
-    jmp finish14
-
-next_line:
-    ; find next line
-    mov bx, cx
-    dec bx
-    add bx, bx
-    add bx, bx
-
-    ; check if not empty
-    mov al, [lines + bx + 3]
-    test al, 80h
-    jz next4
-
-    ; get color
-    mov al, [lines + bx]
-    mov [color], al
-
-    ; get first point
-    mov ax, [offset lines + bx + 1]
-    and ax, 03FFh
-    mov dx, ax
-    add dx, ax
-
-    ; get second point
-    mov ax, [offset lines + bx + 2]
-    shr ax, 2
-    and ax, 03FFh
-    mov bx, ax
-    add bx, ax
-
-    ; call draw_line !
-
-    loop next_line
-
-finish14:
+finish16:
     pop dx
     pop cx
     pop bx
     pop ax
-    mov [color], al
+    ret
+endp
+
+proc delete_line
+    ; gets line index in ax
+    push ax
+    push bx
+    push cx
+
+    ; setup
+    push ds
+    pop es
+    mov bx, ax
+    add bx, ax
+    add bx, ax
+    add bx, ax
+    mov cl, [line_info + bx + 2]
+    and cx, 0000000000111111b
+    push cx
+
+move_next_group:
+    cmp cx, 0
+    jz next3
+    dec cx
+    mov si, offset line_points
+    add si, [offset line_info + bx]
+    add si, [offset line_info + bx]
+    mov di, si
+    add si, 2
+
+move_next_point:
+    push cx
+    xor cx, cx
+    cmp [di], cx
+    pop cx
+    jz move_next_group
+    movsw
+    jmp move_next_point
+
+next3:
+    mov di, offset line_info
+    add di, bx
+    mov si, di
+    add si, 4
+    pop cx
+
+move_next_line:
+    mov al, [di + 2]
+    test al, 11000000b
+    jz finish17
+    sub [si], cx
+    movsw
+    movsw
+    jmp move_next_line
+
+finish17:
+    pop cx
+    pop bx
+    pop ax
+    ret
+endp
+
+proc erase_line
+    ; gets line index in ax
+    push bx
+    mov bl, [color]
+    push bx
+    push cx
+    push dx
+
+    mov bx, ax
+    add bx, ax
+    add bx, ax
+    add bx, ax
+    mov cl, [line_info + bx + 2]
+    and cx, 0000000000111111b
+    mov dx, cx
+    mov bx, [offset line_info + bx]
+    add bx, bx
+
+push_next:
+    push [line_points + bx]
+    add bx, 2
+    loop push_next
+
+finish19:
+    mov [color], 0
+    call draw_bezier_curve
+
+    add sp, dx
+    add sp, dx
+
+    pop dx
+    pop cx
+    pop bx
+    mov [color], bl
+    pop bx
+    ret
+endp
+
+proc delete_lines
+    ; gets point indexes at ax, bx
+    ; deletes all lines that start at ax and end at bx
+    push ax
+    push cx
+    push dx
+
+    ; reset
+    push bx
+    mov [calculation_variable], 0
+
+check_next_line:
+    ; get points and check if line exists
+    mov bx, [calculation_variable]
+    mov cl, [line_info + bx + 2]
+    test cx, 11000000b
+    jz finish18
+    and cx, 0000000000111111b
+    mov dx, [offset line_info + bx]
+    add cx, dx
+    dec cx
+    add cx, cx
+    mov bx, cx
+    mov cx, [line_points + bx]
+    add dx, dx
+    mov bx, dx
+    mov dx, [line_points + bx]
+
+    pop bx
+    push bx
+
+    ; cmp first point (ax)
+    cmp cx, ax
+    jz next_check
+    cmp dx, ax
+    jz next_check
+
+    add [calculation_variable], 4
+    jmp check_next_line
+
+next_check:
+    ; cmp next point (bx)
+    cmp cx, bx
+    jz delete_line1
+    cmp dx, bx
+    jz delete_line1
+
+    add [calculation_variable], 4
+    jmp check_next_line
+
+delete_line1:
+    push ax
+    push bx
+    push dx
+    mov ax, [calculation_variable]
+    mov bx, 4
+    xor dx, dx
+    div bx
+    call erase_line
+    call delete_line
+    pop dx
+    pop bx
+    pop ax
+
+    jmp check_next_line
+
+finish18:
+    pop bx
+
+    pop dx
+    pop cx
     pop ax
     ret
 endp
@@ -1041,76 +1192,168 @@ start:
 	call clear_screen
 	call show_mouse
 
-    mov [button_images],      0000000000000000b
-    mov [button_images + 2],  0001111111111000b
-    mov [button_images + 4],  0010000000000100b
-    mov [button_images + 6],  0100000110000010b
-    mov [button_images + 8],  0100000110000010b
-    mov [button_images + 10], 0100111111110010b
-    mov [button_images + 12], 0100000000000010b
-    mov [button_images + 14], 0100011111100010b
-    mov [button_images + 16], 0100010110100010b
-    mov [button_images + 18], 0100010110100010b
-    mov [button_images + 20], 0100010110100010b
-    mov [button_images + 22], 0100010110100010b
-    mov [button_images + 24], 0100011111100010b
-    mov [button_images + 26], 0010000000000100b
-    mov [button_images + 28], 0001111111111000b
-    mov [button_images + 30], 0000000000000000b
+    mov [button_images],       0000000000000000b
+    mov [button_images + 2],   0001111111111000b
+    mov [button_images + 4],   0010000000000100b
+    mov [button_images + 6],   0100000110000010b
+    mov [button_images + 8],   0100000110000010b
+    mov [button_images + 10],  0100111111110010b
+    mov [button_images + 12],  0100000000000010b
+    mov [button_images + 14],  0100011111100010b
+    mov [button_images + 16],  0100010110100010b
+    mov [button_images + 18],  0100010110100010b
+    mov [button_images + 20],  0100010110100010b
+    mov [button_images + 22],  0100010110100010b
+    mov [button_images + 24],  0100011111100010b
+    mov [button_images + 26],  0010000000000100b
+    mov [button_images + 28],  0001111111111000b
+    mov [button_images + 30],  0000000000000000b
 
-    mov [button_images + 32], 0000000000000000b
-    mov [button_images + 34], 0001111111111000b
-    mov [button_images + 36], 0010000000000100b
-    mov [button_images + 38], 0100010000000010b
-    mov [button_images + 40], 0100000000000010b
-    mov [button_images + 42], 0100001000000010b
-    mov [button_images + 44], 0100000100000010b
-    mov [button_images + 46], 0100000100000010b
-    mov [button_images + 48], 0100000010000010b
-    mov [button_images + 50], 0100000010000010b
-    mov [button_images + 52], 0100000001000010b
-    mov [button_images + 54], 0100000000000010b
-    mov [button_images + 56], 0100000000100010b
-    mov [button_images + 58], 0010000000000100b
-    mov [button_images + 60], 0001111111111000b
-    mov [button_images + 62], 0000000000000000b
+    mov [button_images + 32],  0000000000000000b
+    mov [button_images + 34],  0001111111111000b
+    mov [button_images + 36],  0010000000000100b
+    mov [button_images + 38],  0100010000000010b
+    mov [button_images + 40],  0100000000000010b
+    mov [button_images + 42],  0100001000000010b
+    mov [button_images + 44],  0100000100000010b
+    mov [button_images + 46],  0100000100000010b
+    mov [button_images + 48],  0100000010000010b
+    mov [button_images + 50],  0100000010000010b
+    mov [button_images + 52],  0100000001000010b
+    mov [button_images + 54],  0100000000000010b
+    mov [button_images + 56],  0100000000100010b
+    mov [button_images + 58],  0010000000000100b
+    mov [button_images + 60],  0001111111111000b
+    mov [button_images + 62],  0000000000000000b
 
-    mov [button_images + 64], 0000000000000000b
-    mov [button_images + 66], 0001111111111000b
-    mov [button_images + 68], 0010000000000100b
-    mov [button_images + 70], 0100001100000010b
-    mov [button_images + 72], 0100110000111010b
-    mov [button_images + 74], 0100100000110010b
-    mov [button_images + 76], 0101000000111010b
-    mov [button_images + 78], 0101000000101010b
-    mov [button_images + 80], 0101010000001010b
-    mov [button_images + 82], 0101110000001010b
-    mov [button_images + 84], 0100110000010010b
-    mov [button_images + 86], 0101110000110010b
-    mov [button_images + 88], 0100000011000010b
-    mov [button_images + 90], 0010000000000100b
-    mov [button_images + 92], 0001111111111000b
-    mov [button_images + 94], 0000000000000000b
+    mov [button_images + 64],  0000000000000000b
+    mov [button_images + 66],  0001111111111000b
+    mov [button_images + 68],  0010000000000100b
+    mov [button_images + 70],  0100001100000010b
+    mov [button_images + 72],  0100110000111010b
+    mov [button_images + 74],  0100100000110010b
+    mov [button_images + 76],  0101000000111010b
+    mov [button_images + 78],  0101000000101010b
+    mov [button_images + 80],  0101010000001010b
+    mov [button_images + 82],  0101110000001010b
+    mov [button_images + 84],  0100110000010010b
+    mov [button_images + 86],  0101110000110010b
+    mov [button_images + 88],  0100000011000010b
+    mov [button_images + 90],  0010000000000100b
+    mov [button_images + 92],  0001111111111000b
+    mov [button_images + 94],  0000000000000000b
 
+    mov [button_images + 96],  0000000000000000b
+    mov [button_images + 98],  0001111111111000b
+    mov [button_images + 100], 0010000000000100b
+    mov [button_images + 102], 0100010000000010b
+    mov [button_images + 104], 0100000000000010b
+    mov [button_images + 106], 0100001000000010b
+    mov [button_images + 108], 0100000000000010b
+    mov [button_images + 110], 0100000000000010b
+    mov [button_images + 112], 0100000000000010b
+    mov [button_images + 114], 0100000000000010b
+    mov [button_images + 116], 0100000001000010b
+    mov [button_images + 118], 0100000000000010b
+    mov [button_images + 120], 0100000000100010b
+    mov [button_images + 122], 0010000000000100b
+    mov [button_images + 124], 0001111111111000b
+    mov [button_images + 126], 0000000000000000b
+
+    xor dx, dx
     jmp game_loop
 
-button1:
-    call clear_screen
-    call show_mouse
+    mov [x_point], 50 ; remove !
+    mov [y_point], 100
+    call save_point
+    mov [x_point], 130
+    mov [y_point], 50
+    call save_point
+    mov [x_point], 100
+    mov [y_point], 20
+    call save_point
+    mov [x_point], 5
+    mov [y_point], 5
+    call save_point
+
+    mov dx, 3
+    push 1023
+    push 1022
+    push 1021
+    call save_line
+    pop ax
+    pop ax
+    pop ax
+    mov dx, 4
+    push 1023
+    push 1022
+    push 1021
+    push 1020
+    call save_line
+    pop ax
+    pop ax
+    pop ax
+    mov dx, 3
+    push 1023
+    push 1020
+    push 1021
+    call save_line
+    pop ax
+    pop ax
+    pop ax
     call draw_saved_lines
+    mov ax, 1023
+    mov bx, 1021
+    call delete_lines
+a: ; remove !
+    jmp a
+
+button1:
+    cmp dx, 2
+    jz continue
+    jmp game_loop
+continue:
+    pop ax
+    pop bx
+    push bx
+    push ax
+    call delete_lines
+    ; mov ax, 0
+    ; call erase_line
+    ; call delete_line
     jmp game_loop
 
 button2:
-    mov ax, 1024
-    call get_selected_point
-    jnz game_loop
-    call prepare_for_line
-    call draw_bezier_curve
+    push dx
+    call clear_screen
+    call show_mouse
+    mov cx, [x_point]
+    add cx, [x_point]
+    add cx, 4
+    mov dx, [y_point]
+    add dx, 2
+    mov ax, 4
+    int 33h
+    call draw_saved_lines
+    pop dx
     jmp game_loop
 
 button3:
+    cmp dx, 2
+    jb game_loop
+    mov ax, 1024
+    call get_selected_point
+    jnz game_loop
+    call save_line
+    call draw_bezier_curve
+    jmp game_loop
+
+button4:
     call hide_selected_points
     call delete_selected_points
+    add sp, dx
+    add sp, dx
+    xor dx, dx
     jmp game_loop
 
 execute_buttons:
@@ -1127,6 +1370,9 @@ execute_buttons:
 
     cmp ax, 3
     jz button3
+    
+    cmp ax, 4
+    jz button4
 
 move_loop:
     sub cx, [x_point]
@@ -1152,8 +1398,9 @@ next:
 
     call get_mouse_info
     cmp bx, 1
-    jnz game_loop
-    jmp move_loop
+    jz move_loop
+    pop dx
+    jmp game_loop
 
 game_loop:
     call draw_saved_points ; don't do this !
@@ -1185,6 +1432,8 @@ game_loop:
     ; bh = on point
     ; [x_point] = current x
     ; [y_point] = current y
+    ; dx = selected points count
+    ; stack = selected points indexes
 
     ; decision tree:
     ; * = has a lable
@@ -1220,6 +1469,8 @@ game_loop:
     cmp ch, 3
     jnz not_point_selected
 
+    push dx
+
     mov cx, [x_point]
     mov dx, [y_point]
 
@@ -1245,6 +1496,9 @@ not_on_point:
     call get_selected_point
     jnz not_exists_selected_point
 
+    add sp, dx
+    add sp, dx
+    xor dx, dx
     call clear_selected_points
 
     jmp game_loop
@@ -1255,24 +1509,14 @@ not_exists_selected_point:
     jmp game_loop
 
 not_point_selected:
-    mov bx, ax
-    add bx, ax
-    mov cx, [point_info + bx]
+    push ax
+    inc dx
     mov ch, 3
     mov [point_info + bx], cx
 
     jmp game_loop
-
-exit_loop:
-    jmp exit_loop
-
-exit:
-	call exit_graphic_mode
-	mov ax, 4c00h
-	int 21h
 END start
 
-; add lines !
 ; make update points and update slines !
 ; add colors !
 ; add line button !
