@@ -264,15 +264,17 @@ proc clear_screen
     ret
 endp
 
-proc show_mouse
-	xor ax, ax
+proc start_mouse
+    push ax
+    xor ax, ax
  	int 33h
 	mov ax, 1h
 	int 33h
+    pop ax
 	ret
 endp
 
-proc get_mouse_info
+proc get_mouse_info ; don't subtruct one !
 	; bx = 1 = pressed
 	; x_point = X co-ordinate
 	; y_point = y co-ordinate
@@ -295,7 +297,7 @@ proc get_mouse_info
 	ret
 endp
 
-proc get_mouse_press_info
+proc get_mouse_press_info ; don't subtruct one !
 	; bx = 1 = pressed
 	; x_point = X co-ordinate
 	; y_point = y co-ordinate
@@ -490,7 +492,7 @@ endp
 
 ; points
 
-proc clear_selected_points
+proc clear_selected_points ; change to use stack !
     ; zf = 1 = reset at least one point
     push ax
     push bx
@@ -780,7 +782,7 @@ found_point:
     ret
 endp
 
-proc move_selected_points
+proc move_selected_points ; change to use stack !
     ; gets distance in cx = x, dx = y
     push ax
     push bx
@@ -807,7 +809,7 @@ finish11:
     ret
 endp
 
-proc hide_selected_points
+proc hide_selected_points ; change to use stack !
     push ax
     mov al, [color]
     push ax
@@ -843,7 +845,7 @@ finish12:
     ret
 endp
 
-proc delete_selected_points
+proc delete_selected_points ; change to use stack !
     push ax
     push bx
     push cx
@@ -1190,7 +1192,7 @@ start:
 	mov ds, ax
     
 	call clear_screen
-	call show_mouse
+	call start_mouse
 
     mov [button_images],       0000000000000000b
     mov [button_images + 2],   0001111111111000b
@@ -1318,15 +1320,13 @@ continue:
     push bx
     push ax
     call delete_lines
-    ; mov ax, 0
-    ; call erase_line
-    ; call delete_line
     jmp game_loop
 
 button2:
     push dx
     call clear_screen
-    call show_mouse
+    call draw_saved_lines
+    call start_mouse
     mov cx, [x_point]
     add cx, [x_point]
     add cx, 4
@@ -1334,7 +1334,6 @@ button2:
     add dx, 2
     mov ax, 4
     int 33h
-    call draw_saved_lines
     pop dx
     jmp game_loop
 
@@ -1388,9 +1387,13 @@ move_loop:
     or ax, dx
     jz next
 
+    mov ax, 2
+    int 33h
     call hide_selected_points
     call move_selected_points
     call draw_saved_points
+    mov ax, 1
+    int 33h
 
 next:
     pop dx
@@ -1400,7 +1403,7 @@ next:
     cmp bx, 1
     jz move_loop
     pop dx
-    jmp game_loop
+    jmp button2
 
 game_loop:
     call draw_saved_points ; don't do this !
@@ -1517,7 +1520,6 @@ not_point_selected:
     jmp game_loop
 END start
 
-; make update points and update slines !
 ; add colors !
 ; add line button !
 ; add way to see lines !
