@@ -274,7 +274,7 @@ proc start_mouse
 	ret
 endp
 
-proc get_mouse_info ; don't subtruct one !
+proc get_mouse_info
 	; bx = 1 = pressed
 	; x_point = X co-ordinate
 	; y_point = y co-ordinate
@@ -287,8 +287,6 @@ proc get_mouse_info ; don't subtruct one !
 	shr cx, 1
     mov [x_point], cx
     mov [y_point], dx
-    sub [x_point], 1
-    sub [y_point], 1
     and bx, 1
 
     pop dx
@@ -297,7 +295,7 @@ proc get_mouse_info ; don't subtruct one !
 	ret
 endp
 
-proc get_mouse_press_info ; don't subtruct one !
+proc get_mouse_press_info
 	; bx = 1 = pressed
 	; x_point = X co-ordinate
 	; y_point = y co-ordinate
@@ -311,8 +309,6 @@ proc get_mouse_press_info ; don't subtruct one !
     shr cx, 1
     mov [x_point], cx
     mov [y_point], dx
-    sub [x_point], 2
-    sub [y_point], 2
 
     and bx, 1
     mov al, [pressed_last_frame]
@@ -492,7 +488,7 @@ endp
 
 ; points
 
-proc clear_selected_points ; change to use stack !
+proc clear_selected_points
     ; zf = 1 = reset at least one point
     push ax
     push bx
@@ -782,7 +778,7 @@ found_point:
     ret
 endp
 
-proc move_selected_points ; change to use stack !
+proc move_selected_points
     ; gets distance in cx = x, dx = y
     push ax
     push bx
@@ -809,7 +805,7 @@ finish11:
     ret
 endp
 
-proc hide_selected_points ; change to use stack !
+proc hide_selected_points
     push ax
     mov al, [color]
     push ax
@@ -845,7 +841,7 @@ finish12:
     ret
 endp
 
-proc delete_selected_points ; change to use stack !
+proc delete_selected_points
     push ax
     push bx
     push cx
@@ -1265,51 +1261,6 @@ start:
     xor dx, dx
     jmp game_loop
 
-    mov [x_point], 50 ; remove !
-    mov [y_point], 100
-    call save_point
-    mov [x_point], 130
-    mov [y_point], 50
-    call save_point
-    mov [x_point], 100
-    mov [y_point], 20
-    call save_point
-    mov [x_point], 5
-    mov [y_point], 5
-    call save_point
-
-    mov dx, 3
-    push 1023
-    push 1022
-    push 1021
-    call save_line
-    pop ax
-    pop ax
-    pop ax
-    mov dx, 4
-    push 1023
-    push 1022
-    push 1021
-    push 1020
-    call save_line
-    pop ax
-    pop ax
-    pop ax
-    mov dx, 3
-    push 1023
-    push 1020
-    push 1021
-    call save_line
-    pop ax
-    pop ax
-    pop ax
-    call draw_saved_lines
-    mov ax, 1023
-    mov bx, 1021
-    call delete_lines
-a: ; remove !
-    jmp a
-
 button1:
     cmp dx, 2
     jz continue
@@ -1406,7 +1357,7 @@ next:
     jmp button2
 
 game_loop:
-    call draw_saved_points ; don't do this !
+    call draw_saved_points
     call clear_highlighted_point
     call get_mouse_press_info
 
@@ -1521,7 +1472,6 @@ not_point_selected:
 END start
 
 ; add colors !
-; add line button !
-; add way to see lines !
+; add save to file
 ; add out of bounds support by modifing the draw saved points and get point at location !
 ; add zoom in and zoom out !
