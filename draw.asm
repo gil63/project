@@ -19,8 +19,8 @@ line_resulution dw 1000
 pressed_last_frame db 0
 dot_sprite_size db 1
 dot_hitbox_size db 6
-button_count db 4
-button_images dw 128 dup(0)
+button_count db 5
+button_images dw 160 dup(0)
 calculation_variable dw ?
 
 CODESEG
@@ -404,6 +404,38 @@ next2:
     ret
 endp
 
+proc draw_square
+    ; gets top left corner in x_point, y_point
+    ; gets sides in ax
+    push cx
+    push dx
+    push [x_point]
+    push [y_point]
+
+    mov cx, [x_point]
+    mov dx, [y_point]
+
+    add [x_point], ax
+    add [y_point], ax
+
+next_point3:
+    call print_point
+
+    dec [x_point]
+    cmp [x_point], cx
+    jnz next_point3
+    add [x_point], ax
+    dec [y_point]
+    cmp [y_point], dx
+    jnz next_point3
+
+    pop [y_point]
+    pop [x_point]
+    pop dx
+    pop cx
+    ret
+endp
+
 ; buttons
 
 proc update_buttons
@@ -420,6 +452,7 @@ proc update_buttons
 
     ; check if x_point is in the right location
     mov bx, [x_point]
+    sub bx, 4
     shr bx, 4
     inc bx
     cmp bh, 0
@@ -926,6 +959,8 @@ endp
 
 proc draw_saved_lines
     push ax
+    mov al, [color]
+    push ax
     push bx
     push cx
     push dx
@@ -938,6 +973,8 @@ next_line:
     test dl, 11000000b
     jz finish16
     and dx, 0000000000111111b
+    mov al, [line_info + bx + 3]
+    mov [color], al
     mov cx, dx
     mov ax, bx
     mov bx, [offset line_info + bx]
@@ -965,6 +1002,8 @@ finish16:
     pop dx
     pop cx
     pop bx
+    pop ax
+    mov [color], al
     pop ax
     ret
 endp
@@ -1141,6 +1180,80 @@ finish18:
     ret
 endp
 
+; screens
+
+proc load_colors_screen
+    push ax
+    push cx
+    push dx
+
+    ; prepere
+    call clear_screen
+
+    push [x_point]
+    push [y_point]
+
+    mov [x_point], 230
+    mov [y_point], 100
+    mov [color], 15
+    mov ax, 10
+
+next_point4:
+    call draw_square
+
+    dec [color]
+    cmp [color], 15
+    jz finish20
+    sub [x_point], 10
+    cmp [x_point], -10
+    jnz next_point4
+    mov [x_point], 230
+    sub [y_point], 10
+    jmp next_point4
+
+finish20:
+    pop [y_point]
+    pop [x_point]
+
+    ; redo mouse
+    call start_mouse
+    mov cx, [x_point]
+    add cx, [x_point]
+    add cx, 4
+    mov dx, [y_point]
+    add dx, 2
+    mov ax, 4
+    int 33h
+    
+    pop dx
+    pop cx
+    pop ax
+    ret
+endp
+
+proc load_draw_screen
+    push ax
+    push cx
+    push dx
+
+    ; reset
+    call clear_screen
+    call draw_saved_lines
+    call start_mouse
+    mov cx, [x_point]
+    add cx, [x_point]
+    add cx, 4
+    mov dx, [y_point]
+    add dx, 2
+    mov ax, 4
+    int 33h
+
+    pop dx
+    pop cx
+    pop ax
+    ret
+endp
+
 ; other
 
 proc toggle_zf
@@ -1258,10 +1371,55 @@ start:
     mov [button_images + 124], 0001111111111000b
     mov [button_images + 126], 0000000000000000b
 
+    mov [button_images + 128], 0000000000000000b
+    mov [button_images + 130], 0001111111111000b
+    mov [button_images + 132], 0010000000000100b
+    mov [button_images + 134], 0100000000000010b
+    mov [button_images + 136], 0100110000000010b
+    mov [button_images + 138], 0100111100000010b
+    mov [button_images + 140], 0100011100000010b
+    mov [button_images + 142], 0100011110000010b
+    mov [button_images + 144], 0100000111000010b
+    mov [button_images + 146], 0100000011100010b
+    mov [button_images + 148], 0100000001100010b
+    mov [button_images + 150], 0100000000010010b
+    mov [button_images + 152], 0100000000000010b
+    mov [button_images + 154], 0010000000000100b
+    mov [button_images + 156], 0001111111111000b
+    mov [button_images + 158], 0000000000000000b
+
     xor dx, dx
     jmp game_loop
 
 button1:
+    call load_colors_screen
+
+wait_for_input:
+    call get_mouse_press_info
+    jz wait_for_input
+
+    cmp [x_point], 240
+    ja wait_for_input
+    cmp [y_point], 110
+    ja wait_for_input
+
+    ; calculate color
+    mov [color], 8
+    mov ax, [y_point]
+    mov bl, 10
+    div bl
+    mov bl, 24
+    mul bl
+    add [color], al
+    mov ax, [x_point]
+    mov bl, 10
+    div bl
+    add [color], al
+
+    call load_draw_screen
+    jmp game_loop
+
+button2:
     cmp dx, 2
     jz continue
     jmp game_loop
@@ -1273,24 +1431,15 @@ continue:
     call delete_lines
     jmp game_loop
 
-button2:
-    push dx
-    call clear_screen
-    call draw_saved_lines
-    call start_mouse
-    mov cx, [x_point]
-    add cx, [x_point]
-    add cx, 4
-    mov dx, [y_point]
-    add dx, 2
-    mov ax, 4
-    int 33h
-    pop dx
+button3:
+    call load_draw_screen
     jmp game_loop
 
-button3:
-    cmp dx, 2
-    jb game_loop
+button4:
+    cmp dx, 1
+    ja enough_points
+    jmp game_loop
+enough_points:
     mov ax, 1024
     call get_selected_point
     jnz game_loop
@@ -1298,7 +1447,7 @@ button3:
     call draw_bezier_curve
     jmp game_loop
 
-button4:
+button5:
     call hide_selected_points
     call delete_selected_points
     add sp, dx
@@ -1313,16 +1462,30 @@ execute_buttons:
 
     ; check which button was pressed
     cmp ax, 1
-    jz button1
+    jnz not_pressed1
+    jmp button1
+
+not_pressed1:
 
     cmp ax, 2
-    jz button2
+    jnz not_pressed2
+    jmp button2
+
+not_pressed2:
 
     cmp ax, 3
-    jz button3
-    
+    jnz not_pressed3
+    jmp button3
+
+not_pressed3:
+
     cmp ax, 4
-    jz button4
+    jnz not_pressed4
+    jmp button4
+
+not_pressed4:
+
+    jmp button5
 
 move_loop:
     sub cx, [x_point]
@@ -1354,7 +1517,8 @@ next:
     cmp bx, 1
     jz move_loop
     pop dx
-    jmp button2
+    call load_draw_screen
+    jmp game_loop
 
 game_loop:
     call draw_saved_points
