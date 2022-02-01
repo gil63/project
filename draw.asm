@@ -27,7 +27,7 @@ CODESEG
 
 ; visual
 
-proc draw_dot
+proc draw_dot ; remove !
     ; draws a dot at x_point, y_point
     push ax
     push bx
@@ -705,7 +705,7 @@ finish8:
     ret
 endp
 
-proc draw_saved_points
+proc draw_saved_points ; use draw square and change selected and highlighted sprites !
     push ax
     mov al, [color]
     push ax
@@ -1180,6 +1180,62 @@ finish18:
     ret
 endp
 
+proc delete_deleted_lines
+    push ax
+    push bx
+    push cx
+    push dx
+
+    xor bx, bx
+    sub bx, 4
+next_line1:
+    add bx, 4
+    mov dl, [line_info + bx + 2]
+    test dl, 11000000b
+    jz finish21
+    and dx, 0000000000111111b
+    mov al, [line_info + bx + 3]
+    mov [color], al
+    mov cx, dx
+    mov ax, bx
+    mov bx, [offset line_info + bx]
+    add bx, bx
+    sub bx, 2
+
+check_next_point1:
+    ; check all points
+    add bx, 2
+    cmp [line_info + bx + 1], 0
+    jz delete_line2
+    loop check_next_point1
+
+    ; repeat
+    mov bx, ax
+    jmp next_line1
+    
+    ; delete line
+delete_line2:
+    push cx
+    mov cl, 4
+    div cl
+    call erase_line
+    call delete_line
+    mul cl
+    pop cx
+
+    ; check next line
+    mov bx, ax
+    sub bx, 4
+    jmp next_line1
+
+finish21:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+endp
+
 ; screens
 
 proc load_colors_screen
@@ -1450,6 +1506,7 @@ enough_points:
 button5:
     call hide_selected_points
     call delete_selected_points
+    call delete_deleted_lines
     add sp, dx
     add sp, dx
     xor dx, dx
@@ -1635,7 +1692,6 @@ not_point_selected:
     jmp game_loop
 END start
 
-; add colors !
-; add save to file
+; add save to file !
 ; add out of bounds support by modifing the draw saved points and get point at location !
-; add zoom in and zoom out !
+; add zoom in and zoom out by saving real point cords and modified point cords !
