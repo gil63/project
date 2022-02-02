@@ -17,8 +17,8 @@ y_point dw ?
 color db 15
 line_resulution dw 1000
 pressed_last_frame db 0
-dot_sprite_size db 1
-dot_hitbox_size db 6
+dot_sprite_size db 3
+dot_hitbox_size db 5
 button_count db 5
 button_images dw 160 dup(0)
 calculation_variable dw ?
@@ -27,43 +27,106 @@ CODESEG
 
 ; visual
 
-proc draw_dot ; remove !
+proc draw_dot
     ; draws a dot at x_point, y_point
     push ax
     push bx
-    push cx
 
-    xor ch, ch
-    mov cl, [dot_sprite_size]
-
-    mov ax, [x_point]
-    add ax, cx
-    
-    mov bx, [y_point]
-    add bx, cx
-
-    sub [x_point], cx
-    sub [y_point], cx
-
-go_right:
-    call print_point
-
-    inc [x_point]
-    cmp [x_point], ax
-    jg go_down
-    jmp go_right
-
-go_down:
-    sub [x_point], cx
-    sub [x_point], cx
+    ; calculate middle of point
+    xor ah, ah
+    mov al, [dot_sprite_size]
+    shr al, 1
+    sub [x_point], ax
     dec [x_point]
-    inc [y_point]
-    cmp [y_point], bx
-    jg finish1
-    jmp go_right
+    sub [y_point], ax
+    dec [y_point]
+    mov al, [dot_sprite_size]
 
-finish1:
-    pop cx
+    mov bl, [color]
+    mov [color], 0
+
+    add ax, 2
+    dec [x_point]
+    dec [y_point]
+
+    call draw_square_border
+    mov [color], bl
+
+    sub ax, 2
+    inc [x_point]
+    inc [y_point]
+    call draw_square
+
+    pop bx
+    pop ax
+    ret
+endp
+
+proc draw_selected_dot
+    ; draws a dot at x_point, y_point
+    push ax
+    push bx
+
+    ; calculate middle of point
+    xor ah, ah
+    mov al, [dot_sprite_size]
+    shr al, 1
+    sub [x_point], ax
+    dec [x_point]
+    sub [y_point], ax
+    dec [y_point]
+    mov al, [dot_sprite_size]
+
+    mov bl, [color]
+    mov [color], 12
+
+    add ax, 2
+    dec [x_point]
+    dec [y_point]
+
+    call draw_square_border
+    mov [color], bl
+
+    sub ax, 2
+    inc [x_point]
+    inc [y_point]
+    call draw_square
+
+    pop bx
+    pop ax
+    ret
+endp
+
+proc draw_highlighted_dot
+    ; draws a dot at x_point, y_point
+    push ax
+    push bx
+
+    ; calculate middle of point
+    xor ah, ah
+    mov al, [dot_sprite_size]
+    shr al, 1
+    sub [x_point], ax
+    dec [x_point]
+    sub [y_point], ax
+    dec [y_point]
+    mov al, [dot_sprite_size]
+
+    mov bl, [color]
+    mov [color], 11
+
+    add ax, 2
+    dec [x_point]
+    dec [y_point]
+
+    call draw_square_border
+    mov [color], bl
+
+    sub ax, 2
+    inc [x_point]
+    inc [y_point]
+    call draw_square
+
     pop bx
     pop ax
     ret
@@ -397,6 +460,7 @@ next2:
 
     pop cx
     loop go_down3
+    dec [x_point]
 
     pop cx
     pop bx
@@ -436,6 +500,54 @@ next_point3:
     ret
 endp
 
+proc draw_square_border
+    ; gets top left corner in x_point, y_point
+    ; gets sides in ax
+    push cx
+    push [x_point]
+    push [y_point]
+    
+    inc [x_point]
+    inc [y_point]
+
+    ; first line
+    mov cx, ax
+    dec cx
+next_point5:
+    inc [x_point]
+    call print_point
+    loop next_point5
+
+    ; second line
+    mov cx, ax
+    dec cx
+next_point6:
+    inc [y_point]
+    call print_point
+    loop next_point6
+
+    ; third line
+    mov cx, ax
+    dec cx
+next_point7:
+    dec [x_point]
+    call print_point
+    loop next_point7
+
+    ; forth line
+    mov cx, ax
+    dec cx
+next_point8:
+    dec [y_point]
+    call print_point
+    loop next_point8
+
+    pop [y_point]
+    pop [x_point]
+    pop cx
+    ret
+endp
+
 ; buttons
 
 proc update_buttons
@@ -452,7 +564,6 @@ proc update_buttons
 
     ; check if x_point is in the right location
     mov bx, [x_point]
-    sub bx, 4
     shr bx, 4
     inc bx
     cmp bh, 0
@@ -705,7 +816,7 @@ finish8:
     ret
 endp
 
-proc draw_saved_points ; use draw square and change selected and highlighted sprites !
+proc draw_saved_points
     push ax
     mov al, [color]
     push ax
@@ -723,6 +834,7 @@ find_next:
     add bx, bx
 
     mov ax, [point_info + bx]
+    mov [color], al
     cmp ah, 1
     jz draw_normal1
     cmp ah, 2
@@ -734,7 +846,6 @@ find_next:
     jmp finish
 
 draw_normal1:
-    mov [color], al
     mov ax, [x_points + bx]
     mov [x_point], ax
     mov ax, [y_points + bx]
@@ -749,8 +860,7 @@ draw_selected1:
     mov [x_point], ax
     mov ax, [y_points + bx]
     mov [y_point], ax
-    mov [color], 12
-    call draw_dot
+    call draw_selected_dot
 
     loop find_next
     jmp finish
@@ -760,8 +870,7 @@ draw_highlighted1:
     mov [x_point], ax
     mov ax, [y_points + bx]
     mov [y_point], ax
-    mov [color], 11
-    call draw_dot
+    call draw_highlighted_dot
 
     loop find_next
     jmp finish
@@ -1293,14 +1402,12 @@ proc load_draw_screen
     push dx
 
     ; reset
+    mov cx, [x_point]
+    shl cx, 1
+    mov dx, [y_point]
     call clear_screen
     call draw_saved_lines
     call start_mouse
-    mov cx, [x_point]
-    add cx, [x_point]
-    add cx, 4
-    mov dx, [y_point]
-    add dx, 2
     mov ax, 4
     int 33h
 
