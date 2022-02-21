@@ -6,7 +6,7 @@ STACK 100h
 
 DATASEG
 
-scale_factor db 100
+scale_factor db 10
 screen_x dw 32768
 screen_y dw 32768
 x_points dw 2048 dup(?)
@@ -15,22 +15,212 @@ mod_x_points dw 2048 dup(?)
 mod_y_points dw 2048 dup(?)
 point_info dw 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal, 2 = highlighted, 3 = selected, 4 = hidden)
 line_info db 4096 dup(0) ; first, second bytes = starting index in line_points, third byte - 2 last bytes = point count, 2 last bytes of third byte = mode (0 = doesn't exists, 1 = normal), forth byte = color
+fill_info db 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal)
 line_points dw 4096 dup(0)
 used_line_points dw 0
 x_point dw ?
 y_point dw ?
 color db 15
 line_resulution dw 1000
+fill_resulution dw 2
 last_press_info db 0
 dot_sprite_size db 3
-dot_hitbox_size db 5
-button_count db 8
-button_images dw 256 dup(?)
+dot_hitbox_size db 4
+button_count db 9
+button_images dw 288 dup(?)
 calculation_variable dw ?
 
 CODESEG
 
 ; visual
+
+proc check_if_black
+    ; gets top left corner in x_point, y_point
+    ; gets sides in ax
+    ; zf = 1 = all black
+    push bx
+    push cx
+    push dx
+    push [x_point]
+    push [y_point]
+
+    mov cx, [x_point]
+    mov dx, [y_point]
+    xor bx, bx
+
+    cmp [x_point], 320
+    jae found_color
+    cmp [y_point], 200
+    jae found_color
+
+    add [x_point], ax
+    add [y_point], ax
+
+    cmp [x_point], 320
+    jae found_color
+    cmp [y_point], 200
+    jae found_color
+
+next_point3:
+    push ax
+    push cx
+    push dx
+    mov ah, 0dh
+    mov cx, [x_point]
+    mov dx, [y_point]
+    int 10h
+    cmp al, 0
+    pop dx
+    pop cx
+    pop ax
+    jnz found_color
+
+    dec [x_point]
+    cmp [x_point], cx
+    jnz next_point3
+    add [x_point], ax
+    dec [y_point]
+    cmp [y_point], dx
+    jnz next_point3
+
+    call toggle_zf_on
+    pop [y_point]
+    pop [x_point]
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+found_color:
+    call toggle_zf_off
+    pop [y_point]
+    pop [x_point]
+    pop dx
+    pop cx
+    pop bx
+    ret
+endp
+
+proc extand_left
+    ; gets point in x_point, y_point
+    ; gets incruments in ax
+    ; moves point to the nearest color left of the point
+
+    add [x_point], ax
+
+move_point:
+    sub [x_point], ax
+    call check_if_black
+    jz move_point
+
+    ret
+endp
+
+proc fill_in
+    push ax
+    push cx
+    push dx
+
+    mov si, sp
+    mov ax, [fill_resulution]
+
+    mov cl, [dot_sprite_size]
+    xor ch, ch
+    shr cx, 1
+    add cx, 2
+    add cx, ax
+    sub [x_point], cx
+    call extand_left
+    push [x_point]
+    push [y_point]
+
+next_segment:
+    cmp si, sp
+    jnz not_done
+    jmp finish23
+
+not_done:
+
+    pop [y_point]
+    pop [x_point]
+    mov cx, [x_point]
+    mov dx, [y_point]
+
+    add [x_point], ax
+    add [y_point], ax
+    call check_if_black
+    jnz skip
+    
+    call extand_left
+    push [x_point]
+    push [y_point]
+
+skip:
+
+    mov [x_point], cx
+    mov [y_point], dx
+
+    add [x_point], ax
+    sub [y_point], ax
+    call check_if_black
+    jnz do_segment
+    
+    call extand_left
+    push [x_point]
+    push [y_point]
+
+do_segment:
+    mov [x_point], cx
+    mov [y_point], dx
+    
+    add [x_point], ax
+    call draw_square
+
+    add [x_point], ax
+    call check_if_black
+    jnz next_segment
+    sub [x_point], ax
+
+    mov cx, [x_point]
+    mov dx, [y_point]
+
+    add [y_point], ax
+    call check_if_black
+    jz skip1
+
+    add [x_point], ax
+    call check_if_black
+    jnz skip1
+
+    sub [x_point], ax
+    push [x_point]
+    push [y_point]
+
+skip1:
+    
+    mov [x_point], cx
+    mov [y_point], dx
+
+    sub [y_point], ax
+    call check_if_black
+    jz do_segment
+
+    add [x_point], ax
+    call check_if_black
+    jnz do_segment
+
+    sub [x_point], ax
+    push [x_point]
+    push [y_point]
+
+    jmp do_segment
+
+finish23:
+    pop dx
+    pop cx
+    pop ax
+    ret
+endp
 
 proc draw_dot
     ; draws a dot at x_point, y_point
@@ -404,13 +594,21 @@ proc print_point
     push cx
     push dx
 
-    xor bh, bh 
+    ; check if point is in bounds
+    cmp [x_point], 320
+    jae finish22
+    cmp [y_point], 200
+    jae finish22
+
+    ; print point
+    xor bh, bh
     mov cx, [x_point]
     mov dx, [y_point]
-    mov al, [color] 
-    mov ah, 0ch 
+    mov al, [color]
+    mov ah, 0ch
     int 10h
 
+finish22:
     pop dx
     pop cx
     pop bx
@@ -485,16 +683,16 @@ proc draw_square
     add [x_point], ax
     add [y_point], ax
 
-next_point3:
+next_point10:
     call print_point
 
     dec [x_point]
     cmp [x_point], cx
-    jnz next_point3
+    jnz next_point10
     add [x_point], ax
     dec [y_point]
     cmp [y_point], dx
-    jnz next_point3
+    jnz next_point10
 
     pop [y_point]
     pop [x_point]
@@ -869,14 +1067,14 @@ proc draw_saved_points
     push cx
 
     ; start
-    mov cx, 1024
+    mov bx, 2048
     jmp find_next
 
 find_next:
     ; check if exists
-    mov bx, cx
-    dec bx
-    add bx, bx
+    cmp bx, 0
+    jz finish
+    sub bx, 2
 
     mov ax, [point_info + bx]
     mov [color], al
@@ -887,8 +1085,7 @@ find_next:
     cmp ah, 3
     jz draw_selected1
     
-    loop find_next
-    jmp finish
+    jmp find_next
 
 draw_normal1:
     mov ax, [mod_x_points + bx]
@@ -897,8 +1094,7 @@ draw_normal1:
     mov [y_point], ax
     call draw_dot
 
-    loop find_next
-    jmp finish
+    jmp find_next
 
 draw_selected1:
     mov ax, [mod_x_points + bx]
@@ -907,8 +1103,7 @@ draw_selected1:
     mov [y_point], ax
     call draw_selected_dot
 
-    loop find_next
-    jmp finish
+    jmp find_next
 
 draw_highlighted1:
     mov ax, [mod_x_points + bx]
@@ -917,8 +1112,7 @@ draw_highlighted1:
     mov [y_point], ax
     call draw_highlighted_dot
 
-    loop find_next
-    jmp finish
+    jmp find_next
 
 finish:
     pop cx
@@ -1752,25 +1946,146 @@ start:
     mov [button_images + 252], 0001111111111000b
     mov [button_images + 254], 0000000000000000b
 
+    mov [button_images + 256], 0000000000000000b
+    mov [button_images + 258], 0001111111111000b
+    mov [button_images + 260], 0010000000000100b
+    mov [button_images + 262], 0100000000000010b
+    mov [button_images + 264], 0100111000000010b
+    mov [button_images + 266], 0101001100000010b
+    mov [button_images + 268], 0100011110000010b
+    mov [button_images + 270], 0100111111000010b
+    mov [button_images + 272], 0101111111100010b
+    mov [button_images + 274], 0101111110010010b
+    mov [button_images + 276], 0100111100000010b
+    mov [button_images + 278], 0100011000010010b
+    mov [button_images + 280], 0100000000010010b
+    mov [button_images + 282], 0010000000000100b
+    mov [button_images + 284], 0001111111111000b
+    mov [button_images + 286], 0000000000000000b
+
     xor dx, dx
     jmp game_loop
 
-button1:
-    add [scale_factor], 10
-    call update_mod_points
-    call load_draw_screen
+    mov [x_point], 15 ; TODO: remove
+    mov [y_point], 10
+    call save_point
+
+    mov [x_point], 5
+    mov [y_point], 150
+    call save_point
+
+    mov [x_point], 50
+    mov [y_point], 10
+    call save_point
+
+    mov [x_point], 55
+    mov [y_point], 50
+    call save_point
+
+    mov [x_point], 100
+    mov [y_point], 25
+    call save_point
+
+    mov [x_point], 100
+    mov [y_point], 125
+    call save_point
+
+    mov [x_point], 50
+    mov [y_point], 105
+    call save_point
+
+    mov [x_point], 50
+    mov [y_point], 149
+    call save_point
+
+    push 1023
+    push 1021
+    mov dx, 2
+    call save_line
+
+    push 1023
+    push 1022
+    mov dx, 2
+    call save_line
+
+    push 1021
+    push 1020
+    mov dx, 2
+    call save_line
+    
+    push 1019
+    push 1018
+    mov dx, 2
+    call save_line
+
+    push 1017
+    push 1016
+    mov dx, 2
+    call save_line
+
+    push 1022
+    push 1016
+    mov dx, 2
+    call save_line
+
+    push 1017
+    push 1018
+    mov dx, 2
+    call save_line
+
+    push 1020
+    push 1019
+    mov dx, 2
+    call save_line
+
+    call draw_saved_lines
+
+    mov [x_point], 25
+    mov [y_point], 25
+    call save_point
+
+    call fill_in
+
+    call draw_saved_points
+a:
+    jmp a
+
+button1: ; TODO: finish
+    cmp dx, 1
+    jz continue1
+    jmp game_loop
+
+continue1:
+    pop bx
+    push bx
+    add bx, bx
+    mov ax, [mod_x_points + bx]
+    mov [x_point], ax
+    mov ax, [mod_y_points + bx]
+    mov [y_point], ax
+    call fill_in
     jmp game_loop
 
 button2:
-    sub [scale_factor], 10
+    inc [scale_factor]
     call update_mod_points
     call load_draw_screen
     jmp game_loop
 
-button3: ; finish !
+button3:
+    cmp [scale_factor], 1
+    jnz zoom_in
+    jmp game_loop
+zoom_in:
+    dec [scale_factor]
+    call update_mod_points
+    call load_draw_screen
     jmp game_loop
 
-button4:
+button4: ; TODO: finish
+    jmp game_loop
+
+button5:
     call load_colors_screen
 
 wait_for_input:
@@ -1799,7 +2114,7 @@ wait_for_input:
     call load_draw_screen
     jmp game_loop
 
-button5:
+button6:
     cmp dx, 2
     jz continue
     jmp game_loop
@@ -1811,11 +2126,11 @@ continue:
     call delete_lines
     jmp game_loop
 
-button6:
+button7:
     call load_draw_screen
     jmp game_loop
 
-button7:
+button8:
     cmp dx, 1
     ja enough_points
     jmp game_loop
@@ -1824,7 +2139,7 @@ enough_points:
     call draw_bezier_curve
     jmp game_loop
 
-button8:
+button9:
     call hide_selected_points
     call delete_selected_points
     call delete_deleted_lines
@@ -1871,7 +2186,13 @@ not_pressed6:
 
 not_pressed7:
 
+    cmp ax, 8
+    jnz not_pressed8
     jmp button8
+
+not_pressed8:
+
+    jmp button9
 
 execute_buttons:
     ; check which button was pressed
@@ -2089,5 +2410,6 @@ not_point_selected:
     jmp game_loop
 END start
 
-; add zoom in and zoom out by adding a point state called hidden and when drawing lines check if they are out of bounds !
-; add save to file !
+; TODO: set cycles to max
+; TODO: add zoom in and zoom out by adding a point state called hidden and when drawing lines check if they are out of bounds
+; TODO: add save to file
