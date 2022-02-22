@@ -15,7 +15,7 @@ mod_x_points dw 2048 dup(?)
 mod_y_points dw 2048 dup(?)
 point_info dw 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal, 2 = highlighted, 3 = selected, 4 = hidden)
 line_info db 4096 dup(0) ; first, second bytes = starting index in line_points, third byte - 2 last bytes = point count, 2 last bytes of third byte = mode (0 = doesn't exists, 1 = normal), forth byte = color
-fill_info db 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal)
+area_info db 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal)
 line_points dw 4096 dup(0)
 used_line_points dw 0
 x_point dw ?
@@ -1687,6 +1687,42 @@ finish21:
     ret
 endp
 
+; areas
+
+proc draw_saved_areas
+    push ax
+    mov al, [color]
+    push ax
+    push bx
+
+    mov bx, -2
+
+next_area:
+    add bx, 2
+    cmp bx, 2048
+    jz finish24
+    cmp [area_info + bx + 1], 0
+    jz next_area
+    test [point_info + bx], 0ff00h
+    jz next_area
+
+    mov ax, [mod_x_points + bx]
+    mov [x_point], ax
+    mov ax, [mod_y_points + bx]
+    mov [y_point], ax
+    mov al, [area_info + bx]
+    mov [color], al
+    call fill_in
+    jmp next_area
+
+finish24:
+    pop bx
+    pop ax
+    mov [color], al
+    pop ax
+    ret
+endp
+
 ; screens
 
 proc load_colors_screen
@@ -1751,6 +1787,7 @@ proc load_draw_screen
     call update_mod_points
     call draw_saved_points
     call draw_saved_lines
+    call draw_saved_areas
     call start_mouse
     mov ax, 4
     int 33h
@@ -1966,91 +2003,7 @@ start:
     xor dx, dx
     jmp game_loop
 
-    mov [x_point], 15 ; TODO: remove
-    mov [y_point], 10
-    call save_point
-
-    mov [x_point], 5
-    mov [y_point], 150
-    call save_point
-
-    mov [x_point], 50
-    mov [y_point], 10
-    call save_point
-
-    mov [x_point], 55
-    mov [y_point], 50
-    call save_point
-
-    mov [x_point], 100
-    mov [y_point], 25
-    call save_point
-
-    mov [x_point], 100
-    mov [y_point], 125
-    call save_point
-
-    mov [x_point], 50
-    mov [y_point], 105
-    call save_point
-
-    mov [x_point], 50
-    mov [y_point], 149
-    call save_point
-
-    push 1023
-    push 1021
-    mov dx, 2
-    call save_line
-
-    push 1023
-    push 1022
-    mov dx, 2
-    call save_line
-
-    push 1021
-    push 1020
-    mov dx, 2
-    call save_line
-    
-    push 1019
-    push 1018
-    mov dx, 2
-    call save_line
-
-    push 1017
-    push 1016
-    mov dx, 2
-    call save_line
-
-    push 1022
-    push 1016
-    mov dx, 2
-    call save_line
-
-    push 1017
-    push 1018
-    mov dx, 2
-    call save_line
-
-    push 1020
-    push 1019
-    mov dx, 2
-    call save_line
-
-    call draw_saved_lines
-
-    mov [x_point], 25
-    mov [y_point], 25
-    call save_point
-
-    call fill_in
-
-    call draw_saved_points
-a:
-    jmp a
-
-button1: ; TODO: finish
+button1:
     cmp dx, 1
     jz continue1
     jmp game_loop
@@ -2059,11 +2012,18 @@ continue1:
     pop bx
     push bx
     add bx, bx
+    mov al, [color]
+    mov [area_info + bx], al
+    mov [area_info + bx + 1], 1
     mov ax, [mod_x_points + bx]
     mov [x_point], ax
     mov ax, [mod_y_points + bx]
     mov [y_point], ax
+    mov ax, 2
+    int 33h
     call fill_in
+    mov ax, 1
+    int 33h
     jmp game_loop
 
 button2:
@@ -2411,5 +2371,4 @@ not_point_selected:
 END start
 
 ; TODO: set cycles to max
-; TODO: add zoom in and zoom out by adding a point state called hidden and when drawing lines check if they are out of bounds
 ; TODO: add save to file
