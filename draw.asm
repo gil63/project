@@ -2100,9 +2100,8 @@ enough_points:
     jmp game_loop
 
 button9:
-    call hide_selected_points
     call delete_selected_points
-    call delete_deleted_lines
+    call load_draw_screen
     add sp, dx
     add sp, dx
     xor dx, dx
