@@ -16,18 +16,19 @@ mod_y_points dw 2048 dup(?)
 point_info dw 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal, 2 = highlighted, 3 = selected, 4 = hidden)
 line_info db 4096 dup(0) ; first, second bytes = starting index in line_points, third byte - 2 last bytes = point count, 2 last bytes of third byte = mode (0 = doesn't exists, 1 = normal), forth byte = color
 area_info db 2048 dup(0) ; first byte = color, second byte = mode (0 = doesn't exists, 1 = normal)
+ellipse_info db 8192 dup(0) ; first, second bytes = first point, third, fourth bytes = second point, fifth, sixth bytes = second point, seventh byte = color, eighth byte = mode (0 = doesn't exists, 1 = normal)
 line_points dw 4096 dup(0)
 used_line_points dw 0
 x_point dw ?
 y_point dw ?
 color db 15
-line_resulution dw 1000
+line_resulution dw 2000
 fill_resulution dw 2
 last_press_info db 0
 dot_sprite_size db 3
 dot_hitbox_size db 4
-button_count db 9
-button_images dw 288 dup(?)
+button_count db 10
+button_images dw 320 dup(?)
 calculation_variable dw ?
 
 CODESEG
@@ -98,6 +99,40 @@ found_color:
     pop dx
     pop cx
     pop bx
+    ret
+endp
+
+proc draw_ellipse
+    ; gets a in ax and b in bx
+    ; gest location in x_point, y_point
+    push cx
+    push dx
+    mov dx, ax
+
+    mov cx, [line_resulution]
+
+draw_next:
+    dec cx
+    push dx
+    push [x_point]
+    push [y_point]
+    call cos
+    imul dx
+    idiv [line_resulution]
+    add [x_point], ax
+    call sin
+    imul bx
+    idiv [line_resulution]
+    add [y_point], ax
+    call print_point
+    pop [y_point]
+    pop [x_point]
+    pop dx
+    cmp cx, 0
+    jnz draw_next
+    
+    pop dx
+    pop cx
     ret
 endp
 
@@ -1723,6 +1758,119 @@ finish24:
     ret
 endp
 
+; ellipses
+
+proc save_ellipse
+    ; gets center point index in ax
+    ; gets side points in cx, dx
+
+    push ax
+
+    ; find space
+    mov si, -8
+
+check_next:
+    add si, 8
+    cmp [ellipse_info + si + 7], 0
+    jnz check_next
+
+    mov [offset ellipse_info + si], ax
+    mov [offset ellipse_info + si + 2], cx
+    mov [offset ellipse_info + si + 4], dx
+    mov al, [color]
+    mov [ellipse_info + si + 6], al
+    mov [ellipse_info + si + 7], 1
+    
+    pop ax
+    ret
+endp
+
+proc snap_ellipse_points
+    push ax
+    push bx
+
+    ; find space
+    mov si, -8
+
+check_next1:
+    add si, 8
+    cmp [ellipse_info + si + 7], 0
+    jz finish25
+
+    mov bx, [offset ellipse_info + si]
+    add bx, bx
+    push bx
+    mov ax, [x_points + bx]
+    mov bx, [offset ellipse_info + si + 4]
+    add bx, bx
+    mov [x_points + bx], ax
+    pop bx
+    mov ax, [y_points + bx]
+    mov bx, [offset ellipse_info + si + 2]
+    add bx, bx
+    mov [y_points + bx], ax
+
+    jmp check_next1
+
+finish25:
+    pop bx
+    pop ax
+    ret
+endp
+
+proc draw_saved_ellipses
+    push ax
+    mov al, [color]
+    push ax
+    push bx
+
+    ; find space
+    mov si, -8
+
+draw_next2:
+    add si, 8
+    cmp [ellipse_info + si + 7], 0
+    jz finish26
+
+    ; get origin and color
+    mov bx, [offset ellipse_info + si]
+    add bx, bx
+    mov ax, [mod_x_points + bx]
+    mov [x_point], ax
+    mov ax, [mod_y_points + bx]
+    mov [y_point], ax
+    mov al, [ellipse_info + si + 6]
+    mov [color], al
+
+    ; get a
+    mov bx, [offset ellipse_info + si + 2]
+    add bx, bx
+    mov ax, [mod_x_points + bx]
+    sub ax, [x_point]
+    call abs_ax
+
+    ; get b
+    push ax
+    mov bx, [offset ellipse_info + si + 4]
+    add bx, bx
+    mov ax, [mod_y_points + bx]
+    sub ax, [y_point]
+    call abs_ax
+    mov bx, ax
+    pop ax
+
+    call draw_ellipse
+
+    jmp draw_next2
+
+finish26:
+    pop bx
+    pop ax
+    mov [color], al
+    pop ax
+    ret
+endp
+
 ; screens
 
 proc load_colors_screen
@@ -1787,6 +1935,7 @@ proc load_draw_screen
     call update_mod_points
     call draw_saved_points
     call draw_saved_lines
+    call draw_saved_ellipses
     call draw_saved_areas
     call start_mouse
     mov ax, 4
@@ -1799,6 +1948,188 @@ proc load_draw_screen
 endp
 
 ; other
+
+proc abs_ax
+    ; gets value in ax
+    ; returns answer in ax
+
+    cmp ax, 0
+    jl negate
+    ret
+
+negate:
+    neg ax
+    ret
+endp
+
+proc quarter_cos
+    ; gets angle in ax
+    ; returns value in ax
+    ; only supports angles above or equal to 0 and less then line_resulution/4
+    ; doesn't save dx
+
+    ; mov dx, 100
+    ; mul dx
+    ; xor dx, dx
+    ; div [line_resulution]
+    ; mul cx
+    ; mov bx, 6
+    ; xor dx, dx
+    ; div bx
+    ; mov bx, ax
+    ; mov ax, [line_resulution]
+    ; sub ax, bx
+
+    mov dx, 4
+    mul dx
+    mul ax
+    div [line_resulution]
+    neg ax
+    add ax, [line_resulution]
+
+    ret
+endp
+
+proc cos
+    ; gets angle in cx
+    ; returns value in ax
+    ; only supports angles above or equal to 0 and less then line_resulution
+    push bx
+    push cx
+    push dx
+
+    ; determain which quarter the angle is in
+    mov ax, [line_resulution]
+    mov bx, 4
+    xor dx, dx
+    div bx
+    
+    cmp ax, cx
+    ja first_quarter
+    sub cx, ax
+    cmp ax, cx
+    ja second_quarter
+    sub cx, ax
+    cmp ax, cx
+    ja third_quarter
+    sub cx, ax
+    jmp fourth_quarter
+
+first_quarter:
+    mov ax, cx
+
+    call quarter_cos
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+second_quarter:
+    sub ax, cx
+
+    call quarter_cos
+
+    neg ax
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+third_quarter:
+    mov ax, cx
+
+    call quarter_cos
+
+    neg ax
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+fourth_quarter:
+    sub ax, cx
+
+    call quarter_cos
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+endp
+
+proc sin
+    ; gets angle in cx
+    ; returns value in ax
+    ; only supports angles above or equal to 0 and less then line_resulution
+    push bx
+    push cx
+    push dx
+
+    ; determain which quarter the angle is in
+    mov ax, [line_resulution]
+    mov bx, 4
+    xor dx, dx
+    div bx
+    
+    cmp ax, cx
+    ja first_quarter1
+    sub cx, ax
+    cmp ax, cx
+    ja second_quarter1
+    sub cx, ax
+    cmp ax, cx
+    ja third_quarter1
+    sub cx, ax
+    jmp fourth_quarter1
+
+first_quarter1:
+    sub ax, cx
+
+    call quarter_cos
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+second_quarter1:
+    mov ax, cx
+
+    call quarter_cos
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+    
+third_quarter1:
+    sub ax, cx
+
+    call quarter_cos
+
+    neg ax
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+fourth_quarter1:
+    mov ax, cx
+
+    call quarter_cos
+
+    neg ax
+
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+endp
 
 proc toggle_zf
     push ax
@@ -1999,11 +2330,49 @@ start:
     mov [button_images + 282], 0010000000000100b
     mov [button_images + 284], 0001111111111000b
     mov [button_images + 286], 0000000000000000b
+    
+    mov [button_images + 288], 0000000000000000b
+    mov [button_images + 290], 0001111111111000b
+    mov [button_images + 292], 0010000000000100b
+    mov [button_images + 294], 0100000110000010b
+    mov [button_images + 296], 0100010110100010b
+    mov [button_images + 298], 0100100000010010b
+    mov [button_images + 300], 0100000000000010b
+    mov [button_images + 302], 0101100000011010b
+    mov [button_images + 304], 0101100000011010b
+    mov [button_images + 306], 0100000000000010b
+    mov [button_images + 308], 0100100000010010b
+    mov [button_images + 310], 0100010110100010b
+    mov [button_images + 312], 0100000110000010b
+    mov [button_images + 314], 0010000000000100b
+    mov [button_images + 316], 0001111111111000b
+    mov [button_images + 318], 0000000000000000b
 
     xor dx, dx
     jmp game_loop
 
 button1:
+    cmp dx, 3
+    jz continue2
+    jmp game_loop
+
+continue2:
+    pop dx
+    pop cx
+    pop ax
+    push ax
+    push cx
+    push dx
+
+    call save_ellipse
+    call snap_ellipse_points
+    call load_draw_screen
+
+    mov dx, 3
+
+    jmp game_loop
+
+button2:
     cmp dx, 1
     jz continue1
     jmp game_loop
@@ -2026,13 +2395,13 @@ continue1:
     int 33h
     jmp game_loop
 
-button2:
+button3:
     inc [scale_factor]
     call update_mod_points
     call load_draw_screen
     jmp game_loop
 
-button3:
+button4:
     cmp [scale_factor], 1
     jnz zoom_in
     jmp game_loop
@@ -2042,10 +2411,10 @@ zoom_in:
     call load_draw_screen
     jmp game_loop
 
-button4: ; TODO: finish
+button5: ; TODO: finish
     jmp game_loop
 
-button5:
+button6:
     call load_colors_screen
 
 wait_for_input:
@@ -2074,7 +2443,7 @@ wait_for_input:
     call load_draw_screen
     jmp game_loop
 
-button6:
+button7:
     cmp dx, 2
     jz continue
     jmp game_loop
@@ -2086,11 +2455,11 @@ continue:
     call delete_lines
     jmp game_loop
 
-button7:
+button8:
     call load_draw_screen
     jmp game_loop
 
-button8:
+button9:
     cmp dx, 1
     ja enough_points
     jmp game_loop
@@ -2099,8 +2468,9 @@ enough_points:
     call draw_bezier_curve
     jmp game_loop
 
-button9:
+button10:
     call delete_selected_points
+    call delete_deleted_lines
     call load_draw_screen
     add sp, dx
     add sp, dx
@@ -2150,6 +2520,16 @@ not_pressed7:
     jmp button8
 
 not_pressed8:
+    cmp ax, 9
+    jnz not_pressed9
+    jmp button9
+
+not_pressed9:
+    cmp ax, 10
+    jnz not_pressed10
+    jmp button10
+
+not_pressed10:
 
     jmp button9
 
@@ -2177,6 +2557,7 @@ move_loop:
     int 33h
     call hide_selected_points
     call move_selected_points
+    call snap_ellipse_points
     call update_mod_points
     call draw_saved_points
     mov ax, 1
@@ -2369,5 +2750,5 @@ not_point_selected:
     jmp game_loop
 END start
 
-; TODO: set cycles to max
 ; TODO: add save to file
+; TODO: add fast and fancy modes
