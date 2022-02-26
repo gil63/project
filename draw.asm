@@ -1724,6 +1724,35 @@ endp
 
 ; areas
 
+proc delete_deleted_areas
+    ; deletes all areas who's origin is deleted
+
+    push ax
+
+    ; find space
+    mov si, -2
+
+check_next4:
+    add si, 2
+    cmp si, 2048
+    jz finish30
+
+    mov al, [offset point_info + si + 1]
+    cmp al, 0
+    jz delete_area
+
+    jmp check_next4
+
+delete_area:
+    mov [area_info + si + 1], 0
+
+    jmp check_next4
+    
+finish30:
+    pop ax
+    ret
+endp
+
 proc draw_saved_areas
     push ax
     mov al, [color]
@@ -1760,6 +1789,120 @@ endp
 
 ; ellipses
 
+proc delete_deleted_ellipses
+    ; deletes all ellipses which have a deleted point
+
+    push bx
+
+    ; find space
+    mov si, -8
+
+check_next3:
+    add si, 8
+    cmp [ellipse_info + si + 7], 0
+    jz finish29
+
+    mov bx, [offset ellipse_info + si]
+    add bx, bx
+    mov bl, [offset point_info + bx + 1]
+    cmp bl, 0
+    jz delete_ellipse2
+    
+    mov bx, [offset ellipse_info + si + 2]
+    add bx, bx
+    mov bl, [offset point_info + bx + 1]
+    cmp bl, 0
+    jz delete_ellipse2
+    
+    mov bx, [offset ellipse_info + si + 4]
+    add bx, bx
+    mov bl, [offset point_info + bx + 1]
+    cmp bl, 0
+    jz delete_ellipse2
+
+    jmp check_next3
+
+delete_ellipse2:
+    call delete_ellipse
+    sub si, 8
+
+    jmp check_next3
+    
+finish29:
+    pop bx
+    ret
+endp
+
+proc delete_selected_ellipses
+    ; deletes all ellipses who's centers are selected
+
+    push ax
+    push bx
+
+    ; find space
+    mov si, -8
+    mov ax, -1
+
+check_next2:
+    add ax, 1
+    add si, 8
+    cmp [ellipse_info + si + 7], 0
+    jz finish28
+
+    mov bx, [offset ellipse_info + si]
+    add bx, bx
+    mov bl, [offset point_info + bx + 1]
+    cmp bl, 3
+    jz delete_ellipse1
+
+    jmp check_next2
+
+delete_ellipse1:
+    call delete_ellipse
+    sub si, 8
+
+    jmp check_next2
+    
+finish28:
+    pop bx
+    pop ax
+    ret
+endp
+
+proc delete_ellipse
+    ; gets index in ax
+    ; deletes ellipse at index
+
+    push si
+    push di
+
+    push ds
+    pop es
+
+    mov di, offset ellipse_info
+    add di, ax
+    add di, ax
+
+    mov si, di
+    add si, 8
+
+move_next1:
+    cmp [ellipse_info + di + 7], 0
+    jz finish27
+
+    movsw
+    movsw
+    movsw
+    movsw
+
+    jmp move_next1
+    
+finish27:
+    pop di
+    pop si
+    ret
+endp
+
 proc save_ellipse
     ; gets center point index in ax
     ; gets side points in cx, dx
@@ -1789,7 +1932,6 @@ proc snap_ellipse_points
     push ax
     push bx
 
-    ; find space
     mov si, -8
 
 check_next1:
@@ -1824,7 +1966,6 @@ proc draw_saved_ellipses
     push ax
     push bx
 
-    ; find space
     mov si, -8
 
 draw_next2:
@@ -2266,16 +2407,16 @@ start:
     mov [button_images + 160], 0000000000000000b
     mov [button_images + 162], 0001111111111000b
     mov [button_images + 164], 0010000000000100b
-    mov [button_images + 166], 0100000110000010b
-    mov [button_images + 168], 0100000110000010b
-    mov [button_images + 170], 0100000110000010b
-    mov [button_images + 172], 0100000110000010b
-    mov [button_images + 174], 0100000110000010b
-    mov [button_images + 176], 0100011111100010b
-    mov [button_images + 178], 0100001111000010b
-    mov [button_images + 180], 0100000110000010b
-    mov [button_images + 182], 0100000000000010b
-    mov [button_images + 184], 0100111111110010b
+    mov [button_images + 166], 0100011100000010b
+    mov [button_images + 168], 0100100010000010b
+    mov [button_images + 170], 0101001001000010b
+    mov [button_images + 172], 0101011101000010b
+    mov [button_images + 174], 0101001001000010b
+    mov [button_images + 176], 0100100010000010b
+    mov [button_images + 178], 0100011101000010b
+    mov [button_images + 180], 0100000000100010b
+    mov [button_images + 182], 0100000000010010b
+    mov [button_images + 184], 0100000000000010b
     mov [button_images + 186], 0010000000000100b
     mov [button_images + 188], 0001111111111000b
     mov [button_images + 190], 0000000000000000b
@@ -2285,9 +2426,9 @@ start:
     mov [button_images + 196], 0010000000000100b
     mov [button_images + 198], 0100011100000010b
     mov [button_images + 200], 0100100010000010b
-    mov [button_images + 202], 0101001001000010b
+    mov [button_images + 202], 0101000001000010b
     mov [button_images + 204], 0101011101000010b
-    mov [button_images + 206], 0101001001000010b
+    mov [button_images + 206], 0101000001000010b
     mov [button_images + 208], 0100100010000010b
     mov [button_images + 210], 0100011101000010b
     mov [button_images + 212], 0100000000100010b
@@ -2300,33 +2441,33 @@ start:
     mov [button_images + 224], 0000000000000000b
     mov [button_images + 226], 0001111111111000b
     mov [button_images + 228], 0010000000000100b
-    mov [button_images + 230], 0100011100000010b
-    mov [button_images + 232], 0100100010000010b
-    mov [button_images + 234], 0101000001000010b
-    mov [button_images + 236], 0101011101000010b
-    mov [button_images + 238], 0101000001000010b
-    mov [button_images + 240], 0100100010000010b
-    mov [button_images + 242], 0100011101000010b
-    mov [button_images + 244], 0100000000100010b
-    mov [button_images + 246], 0100000000010010b
-    mov [button_images + 248], 0100000000000010b
+    mov [button_images + 230], 0100000000000010b
+    mov [button_images + 232], 0100111000000010b
+    mov [button_images + 234], 0101001100000010b
+    mov [button_images + 236], 0100011110000010b
+    mov [button_images + 238], 0100111111000010b
+    mov [button_images + 240], 0101111111100010b
+    mov [button_images + 242], 0101111110010010b
+    mov [button_images + 244], 0100111100000010b
+    mov [button_images + 246], 0100011000010010b
+    mov [button_images + 248], 0100000000010010b
     mov [button_images + 250], 0010000000000100b
     mov [button_images + 252], 0001111111111000b
     mov [button_images + 254], 0000000000000000b
-
+    
     mov [button_images + 256], 0000000000000000b
     mov [button_images + 258], 0001111111111000b
     mov [button_images + 260], 0010000000000100b
     mov [button_images + 262], 0100000000000010b
-    mov [button_images + 264], 0100111000000010b
-    mov [button_images + 266], 0101001100000010b
-    mov [button_images + 268], 0100011110000010b
-    mov [button_images + 270], 0100111111000010b
-    mov [button_images + 272], 0101111111100010b
-    mov [button_images + 274], 0101111110010010b
-    mov [button_images + 276], 0100111100000010b
-    mov [button_images + 278], 0100011000010010b
-    mov [button_images + 280], 0100000000010010b
+    mov [button_images + 264], 0100000110000010b
+    mov [button_images + 266], 0100011111100010b
+    mov [button_images + 268], 0100100000010010b
+    mov [button_images + 270], 0101000000001010b
+    mov [button_images + 272], 0101000000001010b
+    mov [button_images + 274], 0100100000010010b
+    mov [button_images + 276], 0100011111100010b
+    mov [button_images + 278], 0100000110000010b
+    mov [button_images + 280], 0100000000000010b
     mov [button_images + 282], 0010000000000100b
     mov [button_images + 284], 0001111111111000b
     mov [button_images + 286], 0000000000000000b
@@ -2334,16 +2475,16 @@ start:
     mov [button_images + 288], 0000000000000000b
     mov [button_images + 290], 0001111111111000b
     mov [button_images + 292], 0010000000000100b
-    mov [button_images + 294], 0100000110000010b
-    mov [button_images + 296], 0100010110100010b
-    mov [button_images + 298], 0100100000010010b
-    mov [button_images + 300], 0100000000000010b
-    mov [button_images + 302], 0101100000011010b
-    mov [button_images + 304], 0101100000011010b
-    mov [button_images + 306], 0100000000000010b
-    mov [button_images + 308], 0100100000010010b
-    mov [button_images + 310], 0100010110100010b
-    mov [button_images + 312], 0100000110000010b
+    mov [button_images + 294], 0100000000000010b
+    mov [button_images + 296], 0100100110000010b
+    mov [button_images + 298], 0100011111100010b
+    mov [button_images + 300], 0100101000010010b
+    mov [button_images + 302], 0101000100001010b
+    mov [button_images + 304], 0101000010001010b
+    mov [button_images + 306], 0100100001010010b
+    mov [button_images + 308], 0100011111100010b
+    mov [button_images + 310], 0100000110010010b
+    mov [button_images + 312], 0100000000000010b
     mov [button_images + 314], 0010000000000100b
     mov [button_images + 316], 0001111111111000b
     mov [button_images + 318], 0000000000000000b
@@ -2352,6 +2493,11 @@ start:
     jmp game_loop
 
 button1:
+    call delete_selected_ellipses
+    call load_draw_screen
+    jmp game_loop
+
+button2:
     cmp dx, 3
     jz continue2
     jmp game_loop
@@ -2372,7 +2518,7 @@ continue2:
 
     jmp game_loop
 
-button2:
+button3:
     cmp dx, 1
     jz continue1
     jmp game_loop
@@ -2395,13 +2541,13 @@ continue1:
     int 33h
     jmp game_loop
 
-button3:
+button4:
     inc [scale_factor]
     call update_mod_points
     call load_draw_screen
     jmp game_loop
 
-button4:
+button5:
     cmp [scale_factor], 1
     jnz zoom_in
     jmp game_loop
@@ -2409,9 +2555,6 @@ zoom_in:
     dec [scale_factor]
     call update_mod_points
     call load_draw_screen
-    jmp game_loop
-
-button5: ; TODO: finish
     jmp game_loop
 
 button6:
@@ -2471,6 +2614,8 @@ enough_points:
 button10:
     call delete_selected_points
     call delete_deleted_lines
+    call delete_deleted_ellipses
+    call delete_deleted_areas
     call load_draw_screen
     add sp, dx
     add sp, dx
@@ -2525,13 +2670,7 @@ not_pressed8:
     jmp button9
 
 not_pressed9:
-    cmp ax, 10
-    jnz not_pressed10
     jmp button10
-
-not_pressed10:
-
-    jmp button9
 
 execute_buttons:
     ; check which button was pressed
@@ -2749,6 +2888,3 @@ not_point_selected:
 
     jmp game_loop
 END start
-
-; TODO: add save to file
-; TODO: add fast and fancy modes
