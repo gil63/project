@@ -27,8 +27,8 @@ fill_resulution dw 2
 last_press_info db 0
 dot_sprite_size db 3
 dot_hitbox_size db 4
-button_count db 10
-button_images dw 320 dup(?)
+button_count db 11
+button_images dw 352 dup(?)
 calculation_variable dw ?
 
 CODESEG
@@ -1792,12 +1792,14 @@ endp
 proc delete_deleted_ellipses
     ; deletes all ellipses which have a deleted point
 
+    push ax
     push bx
 
-    ; find space
     mov si, -8
+    mov ax, -1
 
 check_next3:
+    inc ax
     add si, 8
     cmp [ellipse_info + si + 7], 0
     jz finish29
@@ -1824,12 +1826,14 @@ check_next3:
 
 delete_ellipse2:
     call delete_ellipse
+    dec ax
     sub si, 8
 
     jmp check_next3
     
 finish29:
     pop bx
+    pop ax
     ret
 endp
 
@@ -1844,7 +1848,7 @@ proc delete_selected_ellipses
     mov ax, -1
 
 check_next2:
-    add ax, 1
+    inc ax
     add si, 8
     cmp [ellipse_info + si + 7], 0
     jz finish28
@@ -1859,6 +1863,7 @@ check_next2:
 
 delete_ellipse1:
     call delete_ellipse
+    dec ax
     sub si, 8
 
     jmp check_next2
@@ -2459,14 +2464,14 @@ start:
     mov [button_images + 258], 0001111111111000b
     mov [button_images + 260], 0010000000000100b
     mov [button_images + 262], 0100000000000010b
-    mov [button_images + 264], 0100000110000010b
-    mov [button_images + 266], 0100011111100010b
-    mov [button_images + 268], 0100100000010010b
-    mov [button_images + 270], 0101000000001010b
-    mov [button_images + 272], 0101000000001010b
-    mov [button_images + 274], 0100100000010010b
-    mov [button_images + 276], 0100011111100010b
-    mov [button_images + 278], 0100000110000010b
+    mov [button_images + 264], 0100000011000010b
+    mov [button_images + 266], 0100000100100010b
+    mov [button_images + 268], 0100001000010010b
+    mov [button_images + 270], 0100010000010010b
+    mov [button_images + 272], 0100101000100010b
+    mov [button_images + 274], 0100100101000010b
+    mov [button_images + 276], 0100010010000010b
+    mov [button_images + 278], 0100001100000010b
     mov [button_images + 280], 0100000000000010b
     mov [button_images + 282], 0010000000000100b
     mov [button_images + 284], 0001111111111000b
@@ -2489,15 +2494,27 @@ start:
     mov [button_images + 316], 0001111111111000b
     mov [button_images + 318], 0000000000000000b
 
+    mov [button_images + 320], 0000000000000000b
+    mov [button_images + 322], 0001111111111000b
+    mov [button_images + 324], 0010000000000100b
+    mov [button_images + 326], 0100000000000010b
+    mov [button_images + 328], 0100000110000010b
+    mov [button_images + 330], 0100011111100010b
+    mov [button_images + 332], 0100100000010010b
+    mov [button_images + 334], 0101000000001010b
+    mov [button_images + 336], 0101000000001010b
+    mov [button_images + 338], 0100100000010010b
+    mov [button_images + 340], 0100011111100010b
+    mov [button_images + 342], 0100000110000010b
+    mov [button_images + 344], 0100000000000010b
+    mov [button_images + 346], 0010000000000100b
+    mov [button_images + 348], 0001111111111000b
+    mov [button_images + 350], 0000000000000000b
+    
     xor dx, dx
     jmp game_loop
 
 button1:
-    call delete_selected_ellipses
-    call load_draw_screen
-    jmp game_loop
-
-button2:
     cmp dx, 3
     jz continue2
     jmp game_loop
@@ -2518,7 +2535,25 @@ continue2:
 
     jmp game_loop
 
+button2:
+    call delete_selected_ellipses
+    call load_draw_screen
+    jmp game_loop
+
 button3:
+    cmp dx, 1
+    jz continue3
+    jmp game_loop
+
+continue3:
+    pop bx
+    push bx
+    add bx, bx
+    mov [area_info + bx + 1], 0
+    call load_draw_screen
+    jmp game_loop
+
+button4:
     cmp dx, 1
     jz continue1
     jmp game_loop
@@ -2541,13 +2576,13 @@ continue1:
     int 33h
     jmp game_loop
 
-button4:
+button5:
     inc [scale_factor]
     call update_mod_points
     call load_draw_screen
     jmp game_loop
 
-button5:
+button6:
     cmp [scale_factor], 1
     jnz zoom_in
     jmp game_loop
@@ -2557,7 +2592,7 @@ zoom_in:
     call load_draw_screen
     jmp game_loop
 
-button6:
+button7:
     call load_colors_screen
 
 wait_for_input:
@@ -2586,7 +2621,7 @@ wait_for_input:
     call load_draw_screen
     jmp game_loop
 
-button7:
+button8:
     cmp dx, 2
     jz continue
     jmp game_loop
@@ -2598,11 +2633,11 @@ continue:
     call delete_lines
     jmp game_loop
 
-button8:
+button9:
     call load_draw_screen
     jmp game_loop
 
-button9:
+button10:
     cmp dx, 1
     ja enough_points
     jmp game_loop
@@ -2611,11 +2646,15 @@ enough_points:
     call draw_bezier_curve
     jmp game_loop
 
-button10:
+button11:
+    push [x_point]
+    push [y_point]
     call delete_selected_points
     call delete_deleted_lines
     call delete_deleted_ellipses
     call delete_deleted_areas
+    pop [y_point]
+    pop [x_point]
     call load_draw_screen
     add sp, dx
     add sp, dx
@@ -2670,7 +2709,12 @@ not_pressed8:
     jmp button9
 
 not_pressed9:
+    cmp ax, 10
+    jnz not_pressed10
     jmp button10
+
+not_pressed10:
+    jmp button11
 
 execute_buttons:
     ; check which button was pressed
