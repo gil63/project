@@ -27,9 +27,10 @@ fill_resulution dw 2
 last_press_info db 0
 dot_sprite_size db 3
 dot_hitbox_size db 4
-button_count db 11
-button_images dw 352 dup(?)
+button_count db 12
+button_images dw 384 dup(?)
 calculation_variable dw ?
+show_points db 1
 
 CODESEG
 
@@ -2079,7 +2080,12 @@ proc load_draw_screen
     mov dx, [y_point]
     call clear_screen
     call update_mod_points
+    cmp [show_points], 0
+    jz skip3
     call draw_saved_points
+
+skip3:
+
     call draw_saved_lines
     call draw_saved_ellipses
     call draw_saved_areas
@@ -2484,8 +2490,8 @@ start:
     mov [button_images + 296], 0100100110000010b
     mov [button_images + 298], 0100011111100010b
     mov [button_images + 300], 0100101000010010b
-    mov [button_images + 302], 0101000100001010b
-    mov [button_images + 304], 0101000010001010b
+    mov [button_images + 302], 0101000110001010b
+    mov [button_images + 304], 0101000110001010b
     mov [button_images + 306], 0100100001010010b
     mov [button_images + 308], 0100011111100010b
     mov [button_images + 310], 0100000110010010b
@@ -2498,19 +2504,36 @@ start:
     mov [button_images + 322], 0001111111111000b
     mov [button_images + 324], 0010000000000100b
     mov [button_images + 326], 0100000000000010b
-    mov [button_images + 328], 0100000110000010b
-    mov [button_images + 330], 0100011111100010b
-    mov [button_images + 332], 0100100000010010b
-    mov [button_images + 334], 0101000000001010b
-    mov [button_images + 336], 0101000000001010b
-    mov [button_images + 338], 0100100000010010b
-    mov [button_images + 340], 0100011111100010b
-    mov [button_images + 342], 0100000110000010b
+    mov [button_images + 328], 0100101111000010b
+    mov [button_images + 330], 0100010000100010b
+    mov [button_images + 332], 0100101000010010b
+    mov [button_images + 334], 0100100100010010b
+    mov [button_images + 336], 0100100010010010b
+    mov [button_images + 338], 0100100001010010b
+    mov [button_images + 340], 0100010000100010b
+    mov [button_images + 342], 0100001111010010b
     mov [button_images + 344], 0100000000000010b
     mov [button_images + 346], 0010000000000100b
     mov [button_images + 348], 0001111111111000b
     mov [button_images + 350], 0000000000000000b
     
+    mov [button_images + 352], 0000000000000000b
+    mov [button_images + 354], 0001111111111000b
+    mov [button_images + 356], 0010000000000100b
+    mov [button_images + 358], 0100000000000010b
+    mov [button_images + 360], 0100001111000010b
+    mov [button_images + 362], 0100010000100010b
+    mov [button_images + 364], 0100100000010010b
+    mov [button_images + 366], 0100100000010010b
+    mov [button_images + 368], 0100100000010010b
+    mov [button_images + 370], 0100100000010010b
+    mov [button_images + 372], 0100010000100010b
+    mov [button_images + 374], 0100001111000010b
+    mov [button_images + 376], 0100000000000010b
+    mov [button_images + 378], 0010000000000100b
+    mov [button_images + 380], 0001111111111000b
+    mov [button_images + 382], 0000000000000000b
+
     xor dx, dx
     jmp game_loop
 
@@ -2541,6 +2564,11 @@ button2:
     jmp game_loop
 
 button3:
+    xor [show_points], 1
+    call load_draw_screen
+    jmp game_loop
+
+button4:
     cmp dx, 1
     jz continue3
     jmp game_loop
@@ -2553,7 +2581,7 @@ continue3:
     call load_draw_screen
     jmp game_loop
 
-button4:
+button5:
     cmp dx, 1
     jz continue1
     jmp game_loop
@@ -2576,13 +2604,13 @@ continue1:
     int 33h
     jmp game_loop
 
-button5:
+button6:
     inc [scale_factor]
     call update_mod_points
     call load_draw_screen
     jmp game_loop
 
-button6:
+button7:
     cmp [scale_factor], 1
     jnz zoom_in
     jmp game_loop
@@ -2592,7 +2620,7 @@ zoom_in:
     call load_draw_screen
     jmp game_loop
 
-button7:
+button8:
     call load_colors_screen
 
 wait_for_input:
@@ -2621,7 +2649,7 @@ wait_for_input:
     call load_draw_screen
     jmp game_loop
 
-button8:
+button9:
     cmp dx, 2
     jz continue
     jmp game_loop
@@ -2633,11 +2661,11 @@ continue:
     call delete_lines
     jmp game_loop
 
-button9:
+button10:
     call load_draw_screen
     jmp game_loop
 
-button10:
+button11:
     cmp dx, 1
     ja enough_points
     jmp game_loop
@@ -2646,7 +2674,7 @@ enough_points:
     call draw_bezier_curve
     jmp game_loop
 
-button11:
+button12:
     push [x_point]
     push [y_point]
     call delete_selected_points
@@ -2714,7 +2742,12 @@ not_pressed9:
     jmp button10
 
 not_pressed10:
+    cmp ax, 11
+    jnz not_pressed11
     jmp button11
+
+not_pressed11:
+    jmp button12
 
 execute_buttons:
     ; check which button was pressed
@@ -2809,7 +2842,12 @@ next1:
     jmp game_loop
 
 game_loop:
+    cmp [show_points], 0
+    jz skip2
     call draw_saved_points
+
+skip2:
+
     call clear_highlighted_point
     call get_mouse_press_info
 
